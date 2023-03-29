@@ -10,7 +10,7 @@ pub fn spherical_to_equirectangular(coord: (f64, f64), height: u32) -> (u32, u32
     let (theta, phi) = coord;
     let x = (height as f64 * phi / PI).floor() as u32;
     let y = (height as f64 * theta / PI).floor() as u32;
-    (x, y)
+    (x.min(2 * height - 1), y.min(height - 1))
 }
 
 pub fn equirectangular_to_spherical(coord: (u32, u32), height: u32) -> (f64, f64) {
@@ -20,8 +20,8 @@ pub fn equirectangular_to_spherical(coord: (u32, u32), height: u32) -> (f64, f64
     (theta, phi)
 }
 
-pub fn get_star_map() -> Result<DynamicImage, ImageError> {
-    ImageReader::open("sky.tif")?.decode()
+pub fn get_star_map(name: &str) -> Result<DynamicImage, ImageError> {
+    ImageReader::open(name)?.decode()
 }
 
 #[test]

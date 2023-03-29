@@ -1,5 +1,5 @@
 [package]
-name = "BH-Diver"
+name = "bh-diver"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,4 +8,3 @@ edition = "2021"
 [dependencies]
 image = "0.24.6"
 quadrature = "0.1.2"
-roots = "0.0.8"

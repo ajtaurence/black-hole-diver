@@ -1,13 +1,13 @@
-use image::{ImageBuffer, Rgb};
-use BH_Diver::{
+use bh_diver::{
     diver::map_coords_from_rain_coords,
     image::{equirectangular_to_spherical, get_star_map, spherical_to_equirectangular},
 };
+use image::{ImageBuffer, Rgb};
 
 fn main() {
-    let img = get_star_map().unwrap().to_rgb8();
+    let img = get_star_map("sky2.jpg").unwrap().to_rgb8();
 
-    let r = 10000000.;
+    let r = 10.;
     let m = 1.;
 
     let new_img = ImageBuffer::from_fn(img.width(), img.height(), |x, y| {
@@ -16,7 +16,7 @@ fn main() {
         let map_coords = map_coords_from_rain_coords(rain_coords, r, m);
 
         match map_coords {
-            None => Rgb::<u8>([255, 0, 0]),
+            None => Rgb::<u8>([0, 0, 0]),
             Some(map_coords) => img[spherical_to_equirectangular(map_coords, img.height())],
         }
     });

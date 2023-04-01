@@ -1,25 +1,19 @@
-use bh_diver::{
-    diver::map_coords_from_rain_coords,
-    image::{equirectangular_to_spherical, get_star_map, spherical_to_equirectangular},
-};
-use image::{ImageBuffer, Rgb};
+use bh_diver::{camera::Camera, environment::ImageEnvironment};
 
 fn main() {
-    let img = get_star_map("sky2.jpg").unwrap().to_rgb8();
+    // TODO: Fix the direction that the camera rotates to make it easier to use
+    // Add rotation control to the environment
 
-    let r = 10.;
-    let m = 1.;
+    let cam = Camera::new(2_f64, (1920, 1080), 45.);
 
-    let new_img = ImageBuffer::from_fn(img.width(), img.height(), |x, y| {
-        let rain_coords = equirectangular_to_spherical((x, y), img.height());
+    let map = image::io::Reader::open("sky.tif")
+        .unwrap()
+        .decode()
+        .unwrap();
 
-        let map_coords = map_coords_from_rain_coords(rain_coords, r, m);
+    let env = ImageEnvironment::new(map).unwrap();
 
-        match map_coords {
-            None => Rgb::<u8>([0, 0, 0]),
-            Some(map_coords) => img[spherical_to_equirectangular(map_coords, img.height())],
-        }
-    });
+    let img = cam.render(&env);
 
-    new_img.save("new_img.jpg").unwrap();
+    img.save("img.jpg").unwrap();
 }

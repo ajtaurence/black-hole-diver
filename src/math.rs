@@ -1,5 +1,6 @@
 // Contains the math for calculating conversions between rain angles and map angles in the vicinity of a Schwarzschild black hole
 
+use num_traits::{AsPrimitive, Float};
 use quadrature::integrate;
 use std::f64::consts::PI;
 
@@ -8,36 +9,50 @@ fn n_mod_m<T: std::ops::Rem<Output = T> + std::ops::Add<Output = T> + Copy>(n: T
 }
 
 /// Returns whether the photon at this rain angle incoming or outgoing
-fn photon_is_incoming(theta_rain: f64, r: f64, m: f64) -> bool {
-    theta_rain.cos() < (r / (2_f64 * m)).sqrt() && theta_rain.cos() < (2_f64 * m / r).sqrt()
+fn photon_is_incoming<T: Float + 'static>(theta_rain: T, r: T, m: T) -> bool
+where
+    i32: AsPrimitive<T>,
+{
+    theta_rain.cos() < (r / (2.as_() * m)).sqrt() && theta_rain.cos() < (2.as_() * m / r).sqrt()
 }
 
 /// Returns the impact parameter of the photon at this rain angle
-fn impact_parameter(theta_rain: f64, r: f64, m: f64) -> f64 {
-    1_f64
-        / ((r - 2_f64 * m * theta_rain.cos().powi(2)).powi(2)
-            / (theta_rain.sin().powi(2)
-                * r.powi(3)
-                * (m + r
-                    + 2_f64 * (2_f64 * m * r).sqrt() * theta_rain.cos()
-                    + m * (2_f64 * theta_rain).cos())))
-        .sqrt()
+fn impact_parameter<T: Float + 'static>(theta_rain: T, r: T, m: T) -> T
+where
+    i32: AsPrimitive<T>,
+{
+    r * theta_rain.sin() / ((2.as_() * m / r).sqrt() * theta_rain.cos() - 1.as_())
 }
 
 /// Returns the radius of the turning point given the impact parameter
-fn turning_point(b: f64, m: f64) -> f64 {
-    6_f64 * m / (1_f64 - 2_f64 * ((1_f64 - 54_f64 * m.powi(2) / b.powi(2)).asin() / 3_f64).sin())
+fn turning_point<T: Float + 'static>(b: T, m: T) -> T
+where
+    i32: AsPrimitive<T>,
+{
+    6_i32.as_() * m
+        / (1_i32.as_()
+            - 2_i32.as_()
+                * ((1_i32.as_() - 54_i32.as_() * m.powi(2) / b.powi(2)).asin() / 3_i32.as_()).sin())
 }
 
 /// Returns the critical rain angle for this radius
-fn critical_rain_angle(r: f64, m: f64) -> f64 {
-    ((27_f64 * (2_f64 * m.powi(5) * r).sqrt() + r * (r * (6_f64 * m + r)).sqrt() * (r - 3_f64 * m))
-        / (54_f64 * m.powi(3) + r.powi(3)))
+fn critical_rain_angle<T: Float + 'static>(r: T, m: T) -> T
+where
+    i32: AsPrimitive<T>,
+{
+    ((27_i32.as_() * (2_i32.as_() * m.powi(5) * r).sqrt()
+        + r * (r * (6_i32.as_() * m + r)).sqrt() * (r - 3_i32.as_() * m))
+        / (54_i32.as_() * m.powi(3) + r.powi(3)))
     .acos()
 }
 
 /// Returns the map angle not garanteed to be normalized to any range
-fn map_angle_from_impact_parameter(theta_rain: f64, b: f64, m: f64, r: f64) -> f64 {
+fn map_angle_from_impact_parameter<T: Float + 'static>(theta_rain: T, b: T, m: T, r: T) -> T
+where
+    i32: AsPrimitive<T>,
+    f64: AsPrimitive<T>,
+    T: AsPrimitive<f64>,
+{
     // Acceptable error in phi angle
     const PHI_ERROR: f64 = 1e-6;
 
@@ -51,32 +66,55 @@ fn map_angle_from_impact_parameter(theta_rain: f64, b: f64, m: f64, r: f64) -> f
     }
 
     if photon_is_incoming(theta_rain, r, m) {
-        integrate(|x| integrand(x, b, m), 1., (r - 1_f64) / r, PHI_ERROR).integral
+        integrate(
+            |x| integrand(x, b.as_(), m.as_()),
+            1_f64,
+            (r.as_() - 1_f64) / r.as_(),
+            PHI_ERROR,
+        )
+        .integral
+        .as_()
     } else {
         let rtp = turning_point(b, m);
 
-        integrate(|x| integrand(x, b, m), 1., (rtp - 1_f64) / rtp, PHI_ERROR).integral
+        (integrate(
+            |x| integrand(x, b.as_(), m.as_()),
+            1_f64,
+            (rtp.as_() - 1_f64) / rtp.as_(),
+            PHI_ERROR,
+        )
+        .integral
             - integrate(
-                |x| integrand(x, b, m),
-                (rtp - 1_f64) / rtp,
-                (r - 1_f64) / r,
+                |x| integrand(x, b.as_(), m.as_()),
+                (rtp.as_() - 1_f64) / rtp.as_(),
+                (r.as_() - 1_f64) / r.as_(),
                 PHI_ERROR,
             )
-            .integral
+            .integral)
+            .as_()
     }
 }
 
 /// Returns true if the photon at this rain angle hits the black hole
-pub fn hits_black_hole(theta_rain: f64, r: f64, m: f64) -> bool {
+pub fn hits_black_hole<T: Float + 'static>(theta_rain: T, r: T, m: T) -> bool
+where
+    i32: AsPrimitive<T>,
+{
     theta_rain < critical_rain_angle(r, m)
 }
 
 /// Returns the spherical map angle from the rain angle
-pub fn rain_angle_to_map_angle(theta_rain: f64, phi_rain: f64, r: f64) -> Option<(f64, f64)> {
-    debug_assert!(0_f64 <= theta_rain && theta_rain <= PI);
-    debug_assert!(0_f64 <= phi_rain && phi_rain <= 2_f64 * PI);
-
-    let m = 1.;
+pub fn rain_angle_to_map_angle<T: Float + 'static>(
+    theta_rain: T,
+    phi_rain: T,
+    r: T,
+) -> Option<(T, T)>
+where
+    i32: AsPrimitive<T>,
+    f64: AsPrimitive<T>,
+    T: AsPrimitive<f64>,
+{
+    let m = 1.as_();
 
     if hits_black_hole(theta_rain, r, m) {
         return None;
@@ -84,16 +122,16 @@ pub fn rain_angle_to_map_angle(theta_rain: f64, phi_rain: f64, r: f64) -> Option
 
     let b = impact_parameter(theta_rain, r, m);
 
-    let theta_map = PI - map_angle_from_impact_parameter(theta_rain, b, m, r);
+    let theta_map = PI.as_() - map_angle_from_impact_parameter(theta_rain, b, m, r);
 
     // set theta_map back to range 0->pi
     let theta_map_normalized = theta_map.cos().acos();
 
     let mut phi_map = phi_rain;
 
-    // flip phi if needed (not sure why but ==1.0 produces the correct image rather than ==-1.0?)
-    if theta_map.sin().signum() == 1.0 {
-        phi_map = n_mod_m(phi_map + PI, 2_f64 * PI);
+    // flip phi if needed
+    if theta_map.sin().signum() == -1.as_() {
+        phi_map = n_mod_m(phi_map + PI.as_(), 2.as_() * PI.as_());
     }
 
     Some((theta_map_normalized, phi_map))

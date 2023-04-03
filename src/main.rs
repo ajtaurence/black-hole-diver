@@ -6,6 +6,7 @@ use bh_diver::{
 use cgmath::Vector2;
 use eframe::egui;
 use egui::{Checkbox, ColorImage, DragValue, Slider, Vec2};
+use image::GenericImageView;
 use std::sync::Arc;
 
 struct MyApp {
@@ -112,55 +113,61 @@ impl eframe::App for MyApp {
             let res = space * pixelsperpoint * self.res_scale;
             self.camera.resolution = Vector2::new(res.x as u32, res.y as u32);
 
-            // Try to get a new render from the worker
+            // Try to update the image from the render worker
             if let Ok(img) = self.render_worker.receiver.try_recv() {
-                // get a new egui texture handle
-                let texture: &egui::TextureHandle = &ctx.load_texture(
-                    "render texture",
-                    ColorImage::from_rgb(
-                        [img.dimensions().0 as _, img.dimensions().1 as _],
-                        img.as_flat_samples().as_slice(),
-                    ),
-                    Default::default(),
-                );
-
-                // show the image
-                ui.image(texture, space);
+                // update latest render
+                self.previous_render = Some(img);
 
                 // Send a new request
                 let request = RenderRequest::new(self.camera, self.environment.clone(), self.gr);
                 self.render_worker.render(request);
+            }
 
-                // update latest render
-                self.previous_render = Some(img);
-            // Fall back to displaying the previous render
-            } else if let Some(img) = self.previous_render.as_ref() {
-                // frame in progress so we need to repaint
-                ctx.request_repaint();
+            // Display an image if we have one
+            if let Some(img) = self.previous_render.as_ref() {
+                // get the aspect ratio of the image
+                let aspect_ratio_img = img.width() as f32 / img.height() as f32;
 
-                let aspect_ratio = img.dimensions().0 as f32 / img.dimensions().1 as f32;
+                // get the aspect ratio of the space to fill
+                let aspect_ratio_space = ui.available_width() / ui.available_height();
 
-                let space = if aspect_ratio > 1_f32 {
-                    // wide image
-                    Vec2::new(ui.available_width(), ui.available_width() / aspect_ratio)
-                } else {
-                    // narrow image
-                    Vec2::new(ui.available_height() * aspect_ratio, ui.available_height())
-                };
+                // get the space we want to fill with the image
+                let space = Vec2::new(
+                    ui.available_width()
+                        .min(ui.available_height() * aspect_ratio_img),
+                    ui.available_height(),
+                );
+
+                // get the pixel width of the image to fit in the aspect ratio of the space
+                // keeping the height the same
+                let img_pixel_width = img
+                    .width()
+                    .min((img.height() as f32 * aspect_ratio_space) as u32);
+
+                // trim the image
+                let img = img.view(
+                    (img.width() - img_pixel_width) / 2,
+                    0,
+                    img_pixel_width,
+                    img.height(),
+                );
 
                 // get a new egui texture handle
                 let texture: &egui::TextureHandle = &ctx.load_texture(
                     "render texture",
                     ColorImage::from_rgb(
                         [img.dimensions().0 as _, img.dimensions().1 as _],
-                        img.as_flat_samples().as_slice(),
+                        img.to_image().as_flat_samples().as_slice(),
                     ),
                     Default::default(),
                 );
-
                 // show the image
-                ui.image(texture, space);
+
+                ui.vertical_centered(|ui| {
+                    ui.image(texture, space);
+                });
             }
+            ctx.request_repaint();
         });
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     environment::{Environment, Image},
     spherical_angle::{RainAngle, SphericalAngle},
 };
-use cgmath::{vec3, Angle, Deg, Quaternion, Rad, Rotation, Vector2};
+use cgmath::{vec3, Quaternion, Rotation, Vector2};
 use image::{ImageBuffer, Pixel, Rgb};
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use std::f64::consts::PI;
@@ -14,6 +14,7 @@ pub trait Camera: Sync {
 
     fn position(&self) -> f64;
 
+    /// Renders an image with GR
     fn render(&self, env: &impl Environment) -> Image {
         let res = self.resolution();
         let pos = self.position();
@@ -28,6 +29,32 @@ pub trait Camera: Sync {
                 let rain_angle = self.pixel_to_rain_angle(Vector2::new(x, y));
 
                 if let Some(map_angle) = rain_angle.try_to_map_angle(pos) {
+                    // Successful map angle
+                    *pixel = env.get_pixel(map_angle)
+                } else {
+                    // Ray went into black hole
+                    *pixel = *Rgb::from_slice(&[0, 0, 0])
+                }
+            });
+
+        buf
+    }
+
+    /// Render the image without GR but still shows the black hole shadow
+    fn render_no_gr(&self, env: &impl Environment) -> Image {
+        let res = self.resolution();
+        let pos = self.position();
+
+        // Create the image buffer
+        let mut buf: Image = ImageBuffer::new(res.x, res.y);
+
+        // Calculate pixels in parallel
+        buf.enumerate_pixels_mut()
+            .par_bridge()
+            .for_each(|(x, y, pixel)| {
+                let rain_angle = self.pixel_to_rain_angle(Vector2::new(x, y));
+
+                if let Some(map_angle) = rain_angle.try_to_map_angle_no_gr(pos) {
                     // Successful map angle
                     *pixel = env.get_pixel(map_angle)
                 } else {
@@ -93,6 +120,7 @@ impl Camera for EquirectangularCamera {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct PerspectiveCamera {
     pub position: f64,
     pub resolution: Vector2<u32>,

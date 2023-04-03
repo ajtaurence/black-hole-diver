@@ -1,8 +1,7 @@
-use std::f64::consts::PI;
+// Contains the math for calculating conversions between rain angles and map angles in the vicinity of a Schwarzschild black hole
 
 use quadrature::integrate;
-
-const PHI_ERROR: f64 = 1e-6;
+use std::f64::consts::PI;
 
 fn n_mod_m<T: std::ops::Rem<Output = T> + std::ops::Add<Output = T> + Copy>(n: T, m: T) -> T {
     ((n % m) + m) % m
@@ -13,6 +12,7 @@ fn photon_is_incoming(theta_rain: f64, r: f64, m: f64) -> bool {
     theta_rain.cos() < (r / (2_f64 * m)).sqrt() && theta_rain.cos() < (2_f64 * m / r).sqrt()
 }
 
+/// Returns the impact parameter of the photon at this rain angle
 fn impact_parameter(theta_rain: f64, r: f64, m: f64) -> f64 {
     1_f64
         / ((r - 2_f64 * m * theta_rain.cos().powi(2)).powi(2)
@@ -24,17 +24,25 @@ fn impact_parameter(theta_rain: f64, r: f64, m: f64) -> f64 {
         .sqrt()
 }
 
+/// Returns the radius of the turning point given the impact parameter
 fn turning_point(b: f64, m: f64) -> f64 {
     6_f64 * m / (1_f64 - 2_f64 * ((1_f64 - 54_f64 * m.powi(2) / b.powi(2)).asin() / 3_f64).sin())
 }
 
+/// Returns the critical rain angle for this radius
 fn critical_rain_angle(r: f64, m: f64) -> f64 {
     ((27_f64 * (2_f64 * m.powi(5) * r).sqrt() + r * (r * (6_f64 * m + r)).sqrt() * (r - 3_f64 * m))
         / (54_f64 * m.powi(3) + r.powi(3)))
     .acos()
 }
 
+/// Returns the map angle not garanteed to be normalized to any range
 fn map_angle_from_impact_parameter(theta_rain: f64, b: f64, m: f64, r: f64) -> f64 {
+    // Acceptable error in phi angle
+    const PHI_ERROR: f64 = 1e-6;
+
+    // We transform the usual integrand in order to numerically integrate from and infinite radius
+    // This also changes the bounds of integration below
     fn integrand(x: f64, b: f64, m: f64) -> f64 {
         b / ((1_f64 / (x - 1_f64).powi(4)
             - (b.powi(2) * (1_f64 + 2_f64 * m * (x - 1_f64)) / (x - 1_f64).powi(2)))
@@ -58,14 +66,19 @@ fn map_angle_from_impact_parameter(theta_rain: f64, b: f64, m: f64, r: f64) -> f
     }
 }
 
+/// Returns true if the photon at this rain angle hits the black hole
+pub fn hits_black_hole(theta_rain: f64, r: f64, m: f64) -> bool {
+    theta_rain < critical_rain_angle(r, m)
+}
+
+/// Returns the spherical map angle from the rain angle
 pub fn rain_angle_to_map_angle(theta_rain: f64, phi_rain: f64, r: f64) -> Option<(f64, f64)> {
-    
     debug_assert!(0_f64 <= theta_rain && theta_rain <= PI);
     debug_assert!(0_f64 <= phi_rain && phi_rain <= 2_f64 * PI);
 
     let m = 1.;
 
-    if theta_rain < critical_rain_angle(r, m) {
+    if hits_black_hole(theta_rain, r, m) {
         return None;
     }
 

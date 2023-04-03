@@ -1,7 +1,6 @@
-use std::f64::consts::PI;
-
-use crate::math::rain_angle_to_map_angle;
+use crate::math::{hits_black_hole, rain_angle_to_map_angle};
 use cgmath::{vec3, Rotation3, Vector3};
+use std::f64::consts::PI;
 
 pub trait SphericalAngle {
     fn theta(&self) -> f64;
@@ -39,7 +38,7 @@ pub trait SphericalAngle {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct RainAngle {
     pub theta: f64,
     pub phi: f64,
@@ -61,6 +60,13 @@ impl RainAngle {
     pub fn try_to_map_angle(self, r: f64) -> Option<MapAngle> {
         let angle = rain_angle_to_map_angle(self.theta, self.phi, r)?;
         Some(MapAngle::new(angle.0, angle.1))
+    }
+    pub fn try_to_map_angle_no_gr(self, r: f64) -> Option<MapAngle> {
+        if hits_black_hole(self.theta, r, 1.) {
+            return None;
+        } else {
+            return Some(MapAngle::new(self.theta, self.phi));
+        }
     }
     pub fn new(theta: f64, phi: f64) -> Self {
         RainAngle { theta, phi }
@@ -89,9 +95,4 @@ impl MapAngle {
     pub fn new(theta: f64, phi: f64) -> Self {
         MapAngle { theta, phi }
     }
-}
-
-#[derive(Debug)]
-pub enum TrajectoryError {
-    HitSingularity,
 }

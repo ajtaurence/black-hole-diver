@@ -62,7 +62,7 @@ impl RainAngle {
         Some(MapAngle::new(angle.0, angle.1))
     }
     pub fn try_to_map_angle_no_gr(self, r: f64) -> Option<MapAngle> {
-        if hits_black_hole(self.theta, r, 1.) {
+        if hits_black_hole(self.theta, r) {
             return None;
         } else {
             return Some(MapAngle::new(self.theta, self.phi));

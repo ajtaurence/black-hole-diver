@@ -1,5 +1,5 @@
-use crate::math::{hits_black_hole, rain_angle_to_map_angle};
-use cgmath::{vec3, Rotation3, Vector3};
+use crate::math::{hits_black_hole, n_mod_m, rain_angle_to_map_angle};
+use nalgebra::Vector3;
 use std::f64::consts::PI;
 
 pub trait SphericalAngle {
@@ -11,30 +11,17 @@ pub trait SphericalAngle {
     where
         Self: Sized,
     {
-        let theta = (vec.z / (vec.x.powi(2) + vec.y.powi(2) + vec.z.powi(2)).sqrt()).acos();
-        let mut phi = vec.y.atan2(vec.x);
-
-        if phi.is_sign_negative() {
-            phi = phi + 2_f64 * PI;
-        }
-
+        let theta = (vec.z / (vec.x * vec.x + vec.y * vec.y + vec.z * vec.z).sqrt()).acos();
+        let phi = vec.y.atan2(vec.x);
         Self::new(theta, phi)
     }
 
     fn to_vector(&self) -> Vector3<f64> {
-        vec3(
+        Vector3::new(
             self.theta().sin() * self.phi().cos(),
             self.theta().sin() * self.phi().sin(),
             self.theta().cos(),
         )
-    }
-
-    fn rotate<R>(&self, rot: R) -> Self
-    where
-        R: Rotation3<Scalar = f64>,
-        Self: Sized,
-    {
-        Self::from_vector(rot.rotate_vector(self.to_vector()))
     }
 }
 
@@ -52,24 +39,25 @@ impl SphericalAngle for RainAngle {
         self.phi
     }
     fn new(theta: f64, phi: f64) -> Self {
-        Self::new(theta, phi)
+        Self {
+            theta,
+            phi: n_mod_m(phi, 2_f64 * PI),
+        }
     }
 }
 
 impl RainAngle {
-    pub fn try_to_map_angle(self, r: f64) -> Option<MapAngle> {
+    pub fn to_map_angle(self, r: f64) -> Option<MapAngle> {
         let angle = rain_angle_to_map_angle(self.theta, self.phi, r)?;
         Some(MapAngle::new(angle.0, angle.1))
     }
+
     pub fn try_to_map_angle_no_gr(self, r: f64) -> Option<MapAngle> {
         if hits_black_hole(self.theta, r) {
             return None;
         } else {
             return Some(MapAngle::new(self.theta, self.phi));
         }
-    }
-    pub fn new(theta: f64, phi: f64) -> Self {
-        RainAngle { theta, phi }
     }
 }
 
@@ -87,12 +75,9 @@ impl SphericalAngle for MapAngle {
         self.phi
     }
     fn new(theta: f64, phi: f64) -> Self {
-        Self::new(theta, phi)
-    }
-}
-
-impl MapAngle {
-    pub fn new(theta: f64, phi: f64) -> Self {
-        MapAngle { theta, phi }
+        Self {
+            theta,
+            phi: n_mod_m(phi, 2_f64 * PI),
+        }
     }
 }

@@ -1,197 +1,174 @@
-use crate::{
-    environment::{Environment, Image},
-    spherical_angle::{RainAngle, SphericalAngle},
-};
-use cgmath::{vec3, Quaternion, Rotation, Vector2};
-use image::{ImageBuffer, Pixel, Rgb};
-use rayon::prelude::{ParallelBridge, ParallelIterator};
 use std::f64::consts::PI;
 
+use nalgebra::{Rotation3, Vector2, Vector3};
+
+use crate::spherical_angle::{RainAngle, SphericalAngle};
+
+// Camera is assumed to be at the origin
 pub trait Camera: Sync {
+    // returns the resolution of the camera
     fn resolution(&self) -> Vector2<u32>;
 
+    // returns the ray direction through this pixel
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle;
-
-    fn position(&self) -> f64;
-
-    /// Renders an image with GR
-    fn render(&self, env: &impl Environment) -> Image {
-        let res = self.resolution();
-        let pos = self.position();
-
-        // Create the image buffer
-        let mut buf: Image = ImageBuffer::new(res.x, res.y);
-
-        // Calculate pixels in parallel
-        buf.enumerate_pixels_mut()
-            .par_bridge()
-            .for_each(|(x, y, pixel)| {
-                let rain_angle = self.pixel_to_rain_angle(Vector2::new(x, y));
-
-                if let Some(map_angle) = rain_angle.try_to_map_angle(pos) {
-                    // Successful map angle
-                    *pixel = env.get_pixel(map_angle)
-                } else {
-                    // Ray went into black hole
-                    *pixel = *Rgb::from_slice(&[0, 0, 0])
-                }
-            });
-
-        buf
-    }
-
-    /// Render the image without GR but still shows the black hole shadow
-    fn render_no_gr(&self, env: &impl Environment) -> Image {
-        let res = self.resolution();
-        let pos = self.position();
-
-        // Create the image buffer
-        let mut buf: Image = ImageBuffer::new(res.x, res.y);
-
-        // Calculate pixels in parallel
-        buf.enumerate_pixels_mut()
-            .par_bridge()
-            .for_each(|(x, y, pixel)| {
-                let rain_angle = self.pixel_to_rain_angle(Vector2::new(x, y));
-
-                if let Some(map_angle) = rain_angle.try_to_map_angle_no_gr(pos) {
-                    // Successful map angle
-                    *pixel = env.get_pixel(map_angle)
-                } else {
-                    // Ray went into black hole
-                    *pixel = *Rgb::from_slice(&[0, 0, 0])
-                }
-            });
-
-        buf
-    }
 }
 
 pub struct EquirectangularCamera {
-    position: f64,
+    // resolution of the camera
     resolution: Vector2<u32>,
-    facing: RainAngle,
+    // view matrix for transforming from local space to world space
+    // column vectors are right, up, facing in global space
+    pub inverse_view_matrix: Rotation3<f64>,
+}
+
+impl Default for EquirectangularCamera {
+    fn default() -> Self {
+        let mut cam = EquirectangularCamera::new(1024, Default::default());
+        cam.look_at(
+            &Vector3::new(0_f64, 0_f64, 1_f64),
+            &Vector3::new(0_f64, 1_f64, 0_f64),
+        );
+        cam
+    }
 }
 
 impl EquirectangularCamera {
-    pub fn new(position: f64, resolution: Vector2<u32>) -> Self {
+    pub fn new(height: u32, inverse_view_matrix: Rotation3<f64>) -> Self {
         EquirectangularCamera {
-            position,
-            resolution,
-            facing: RainAngle::new(PI / 2_f64, PI),
+            resolution: Vector2::new(height, 2 * height),
+            inverse_view_matrix,
         }
     }
 
-    pub fn update_position(&mut self, position: f64) {
-        self.position = position
-    }
+    // makes the camera look at dir
+    pub fn look_at(&mut self, dir: &Vector3<f64>, up: &Vector3<f64>) {
+        // direction of z axis is -view direction
+        let z = -dir.normalize();
 
-    pub fn face(&mut self, angle: RainAngle) {
-        self.facing = angle
-    }
+        // direction of x axis is perpendicular to z and up
+        let x = up.cross(&z).normalize();
+        debug_assert!(
+            !x[0].is_nan() && !x[1].is_nan() && !x[2].is_nan(),
+            "direction and up vectors are parallel"
+        );
 
-    fn pixel_to_local_angle(&self, pixel: Vector2<u32>) -> RainAngle {
-        let theta = PI * pixel.y as f64 / self.resolution.y as f64;
-        let phi = PI * pixel.x as f64 / self.resolution.y as f64;
+        // direction of y is then perpendicular to x and z
+        let y = z.cross(&x);
 
-        RainAngle::new(theta, phi)
+        self.inverse_view_matrix = Rotation3::from_basis_unchecked(&[x, y, z]);
     }
 }
 
 impl Camera for EquirectangularCamera {
-    fn position(&self) -> f64 {
-        self.position
-    }
-
     fn resolution(&self) -> Vector2<u32> {
         self.resolution
     }
 
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle {
-        let mat = Quaternion::look_at(self.facing.to_vector(), vec3(0_f64, 0_f64, 1_f64));
-        let local_angle = self.pixel_to_local_angle(pixel);
-        let new_angle = local_angle.rotate(mat);
+        // local coordinates
+        let theta = PI * pixel.y as f64 / self.resolution.y as f64;
+        let phi = PI * pixel.x as f64 / self.resolution.y as f64;
+        let local_dir = RainAngle::new(theta, phi).to_vector();
 
-        if new_angle.theta.is_nan() || new_angle.phi.is_nan() {
-            return local_angle;
-        } else {
-            return new_angle;
-        }
+        // transform to global
+        let dir = self.inverse_view_matrix.transform_vector(&local_dir);
+
+        RainAngle::from_vector(dir)
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct PerspectiveCamera {
-    pub position: f64,
+    // resolution of the camera
     pub resolution: Vector2<u32>,
+    // vertical field of view in radians
     pub fov: f64,
-    pub facing: RainAngle,
+    // view matrix for transforming from local space to world space
+    // column vectors are right, up, facing in global space
+    pub inverse_view_matrix: Rotation3<f64>,
 }
 
 impl Default for PerspectiveCamera {
     fn default() -> Self {
-        PerspectiveCamera::new(10_f64, Vector2 { x: 1024, y: 1024 }, 60_f64 * PI / 180_f64)
+        let mut cam = PerspectiveCamera::new(
+            Vector2::new(128, 128),
+            60_f64.to_radians(),
+            Rotation3::default(),
+        );
+        cam.look_at(
+            &Vector3::new(0_f64, 0_f64, 1_f64),
+            &Vector3::new(0_f64, 1_f64, 0_f64),
+        );
+        cam
     }
 }
 
 impl PerspectiveCamera {
-    pub fn new(position: f64, resolution: Vector2<u32>, fov: f64) -> Self {
+    pub fn new(resolution: Vector2<u32>, fov: f64, inverse_view_matrix: Rotation3<f64>) -> Self {
         PerspectiveCamera {
-            position,
             resolution,
             fov,
-            facing: Default::default(),
+            inverse_view_matrix,
         }
     }
 
-    pub fn update_position(&mut self, position: f64) {
-        self.position = position
+    // sets the focal length in pixels
+    pub fn set_focal_length(&mut self, focal_length: f64) {
+        self.fov = 2_f64 * (self.resolution.y as f64 / (2_f64 * focal_length)).atan()
     }
 
-    pub fn face(&mut self, angle: RainAngle) {
-        self.facing = angle
+    // gets the vertical fov in pixels
+    pub fn get_focal_length(&self) -> f64 {
+        self.resolution.y as f64 / (2_f64 * (self.fov / 2_f64).tan())
     }
 
-    // TODO: Make projection not look so weird?
-    fn pixel_to_local_angle(&self, pixel: Vector2<u32>) -> RainAngle {
-        let theta = ((self.fov / 2_f64).tan()
-            * ((pixel.x as f64 - self.resolution.x as f64 / 2_f64).powi(2)
-                + (pixel.y as f64 - self.resolution.y as f64 / 2_f64).powi(2))
-            .sqrt())
-        .atan2(self.resolution.y as f64 / 2_f64);
+    // makes the camera look at dir
+    pub fn look_at(&mut self, dir: &Vector3<f64>, up: &Vector3<f64>) {
+        // direction of z axis is -view direction
+        let z = -dir.normalize();
 
-        let mut phi = f64::atan2(
-            self.resolution.y as f64 / 2_f64 - pixel.y as f64,
-            pixel.x as f64 - self.resolution.x as f64 / 2_f64,
+        // direction of x axis is perpendicular to z and up
+        let x = up.cross(&z).normalize();
+        debug_assert!(
+            !x[0].is_nan() && !x[1].is_nan() && !x[2].is_nan(),
+            "direction and up vectors are parallel"
         );
 
-        // Map phi back to 0 <= phi < 2pi because this can cause problems later
-        if phi < 0_f64 {
-            phi += 2_f64 * PI;
-        }
+        // direction of y is then perpendicular to x and z
+        let y = z.cross(&x);
 
-        RainAngle::new(theta, phi)
+        self.inverse_view_matrix = Rotation3::from_basis_unchecked(&[x, y, z]);
+    }
+
+    pub fn right(&self) -> Vector3<f64> {
+        self.inverse_view_matrix.matrix().column(0).into()
+    }
+
+    pub fn up(&self) -> Vector3<f64> {
+        self.inverse_view_matrix.matrix().column(1).into()
+    }
+
+    pub fn facing(&self) -> Vector3<f64> {
+        self.inverse_view_matrix.matrix().column(2).into()
     }
 }
 
 impl Camera for PerspectiveCamera {
-    fn position(&self) -> f64 {
-        self.position
-    }
-
     fn resolution(&self) -> Vector2<u32> {
         self.resolution
     }
 
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle {
-        let mat = Quaternion::look_at(self.facing.to_vector(), vec3(0_f64, 0_f64, 1_f64));
-        let local_angle = self.pixel_to_local_angle(pixel);
-        let new_angle = local_angle.rotate(mat);
+        // local coordinates
+        let x = pixel.x as f64 - self.resolution.x as f64 / 2_f64;
+        let y = self.resolution.y as f64 / 2_f64 - pixel.y as f64;
+        let z = -self.get_focal_length();
 
-        if new_angle.theta.is_nan() || new_angle.phi.is_nan() {
-            return local_angle;
-        } else {
-            return new_angle;
-        }
+        // transform to global
+        let dir = self
+            .inverse_view_matrix
+            .transform_vector(&Vector3::new(x, y, z));
+
+        RainAngle::from_vector(dir)
     }
 }

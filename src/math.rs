@@ -4,7 +4,7 @@ use num_traits::{AsPrimitive, Float};
 use quadrature::integrate;
 use std::f64::consts::PI;
 
-fn n_mod_m<T: std::ops::Rem<Output = T> + std::ops::Add<Output = T> + Copy>(n: T, m: T) -> T {
+pub fn n_mod_m<T: std::ops::Rem<Output = T> + std::ops::Add<Output = T> + Copy>(n: T, m: T) -> T {
     ((n % m) + m) % m
 }
 
@@ -128,7 +128,7 @@ where
 
     // flip phi if needed
     if theta_map.sin().signum() == -1.as_() {
-        phi_map = n_mod_m(phi_map + PI.as_(), 2.as_() * PI.as_());
+        phi_map = phi_map + PI.as_();
     }
 
     Some((theta_map_normalized, phi_map))

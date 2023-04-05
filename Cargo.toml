@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cgmath = "0.18.0"
 eframe = "0.21.3"
 egui = "0.21.0"
 image = "0.24.6"
+nalgebra = "0.32.2"
 noise = "0.8.2"
 num-traits = "0.2.15"
 quadrature = "0.1.2"

@@ -1,4 +1,5 @@
 use crate::environment::Image;
+use crate::renderer::render;
 use crate::{camera::Camera, environment::Environment};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::Mutex;
@@ -7,12 +8,18 @@ use std::{sync::Arc, thread};
 pub struct RenderRequest<C: Camera, E: Environment> {
     pub camera: C,
     pub env: Arc<E>,
+    pub radius: f64,
     pub gr: bool,
 }
 
 impl<C: Camera, E: Environment> RenderRequest<C, E> {
-    pub fn new(camera: C, env: Arc<E>, gr: bool) -> RenderRequest<C, E> {
-        Self { camera, env, gr }
+    pub fn new(camera: C, env: Arc<E>, radius: f64, gr: bool) -> RenderRequest<C, E> {
+        Self {
+            camera,
+            env,
+            radius,
+            gr,
+        }
     }
 }
 
@@ -54,7 +61,7 @@ impl<C: Camera + Sync + Send + 'static, E: Environment + 'static> RenderWorker<C
                     // If there is a request in the queue, process it
                     let request = queue.remove(0);
                     drop(queue); // Release the lock before rendering
-                    let result = render(&request); // This function should render the request
+                    let result = render_request(&request); // This function should render the request
                     tx.send(result).unwrap(); // Send the result back to the requester
 
                     *working.lock().unwrap() = false;
@@ -87,22 +94,22 @@ impl<C: Camera + Sync + Send + 'static, E: Environment + 'static> RenderWorker<C
     }
 }
 
-fn render<C: Camera, E: Environment>(request: &RenderRequest<C, E>) -> Image {
+fn render_request<C: Camera, E: Environment>(request: &RenderRequest<C, E>) -> Image {
     // rendering logic
-    if request.gr {
-        request.camera.render(request.env.as_ref())
-    } else {
-        request.camera.render_no_gr(request.env.as_ref())
-    }
+    render(
+        &request.camera,
+        request.env.as_ref(),
+        request.radius,
+        request.gr,
+    )
 }
 
 #[test]
 fn test() {
     use crate::camera::PerspectiveCamera;
     use crate::environment::ImageEnvironment;
-    use cgmath::Vector2;
 
-    let cam = PerspectiveCamera::new(10., Vector2::new(100, 100), 1.5);
+    let cam: PerspectiveCamera = Default::default();
 
     let env = Arc::new(
         ImageEnvironment::new(
@@ -115,13 +122,13 @@ fn test() {
 
     let worker = RenderWorker::new();
 
-    let request = RenderRequest::new(cam, env.clone(), true);
+    let request = RenderRequest::new(cam, env.clone(), 10_f64, true);
 
     worker.render(request);
 
     worker.receiver.recv().unwrap();
 
-    let request = RenderRequest::new(cam, env.clone(), true);
+    let request = RenderRequest::new(cam, env.clone(), 10_f64, true);
     worker.render(request);
 
     worker.receiver.recv().unwrap();

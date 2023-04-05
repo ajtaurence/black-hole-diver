@@ -3,16 +3,18 @@ use bh_diver::{
     environment::{Image, ImageEnvironment},
     render_worker::{RenderRequest, RenderWorker},
 };
-use cgmath::Vector2;
 use eframe::egui;
-use egui::{Checkbox, ColorImage, DragValue, Slider, Vec2};
+use egui::{Checkbox, ColorImage, DragValue, Vec2};
 use image::GenericImageView;
+use nalgebra::{Vector2, Vector3};
 use std::sync::Arc;
 
 struct MyApp {
     environment: Arc<ImageEnvironment>,
-    res_scale: f32,
+    res_scale: f64,
     camera: PerspectiveCamera,
+    radius: f64,
+    look_at: Vector3<f64>,
     gr: bool,
     render_worker: RenderWorker<PerspectiveCamera, ImageEnvironment>,
     previous_render: Option<Image>,
@@ -34,6 +36,8 @@ impl Default for MyApp {
             environment: environment.clone(),
             res_scale: 0.5,
             camera: Default::default(),
+            radius: 10_f64,
+            look_at: Vector3::new(0_f64, 0_f64, 1_f64),
             gr: true,
             render_worker: Default::default(),
             previous_render: None,
@@ -51,7 +55,7 @@ impl MyApp {
         let app = Self::default();
 
         // initiate the first render request
-        let request = RenderRequest::new(app.camera, app.environment.clone(), app.gr);
+        let request = RenderRequest::new(app.camera, app.environment.clone(), app.radius, app.gr);
         app.render_worker.render(request);
 
         app
@@ -66,9 +70,9 @@ impl eframe::App for MyApp {
             ui.horizontal(|ui| {
                 ui.label("r/M");
                 ui.add(
-                    DragValue::new(&mut self.camera.position)
+                    DragValue::new(&mut self.radius)
                         .clamp_range(0_f64..=f64::MAX)
-                        .speed(0.5),
+                        .speed(0.1),
                 );
             });
 
@@ -82,24 +86,42 @@ impl eframe::App for MyApp {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Field of view");
-                let mut angle_degrees = self.camera.fov.to_degrees();
-                ui.add(Slider::new(&mut angle_degrees, 0_f64..=180_f64).suffix("°"));
-                self.camera.fov = angle_degrees.to_radians();
+                ui.label("Vertical fov");
+                let mut fov = self.camera.fov.to_degrees();
+                let fov_widget = ui.add(
+                    DragValue::new(&mut fov)
+                        .suffix("°")
+                        .clamp_range(0_f64..=180_f64),
+                );
+                if fov_widget.changed() {
+                    self.camera.fov = fov.to_radians();
+                }
             });
 
             ui.horizontal(|ui| {
-                ui.label("Theta");
-                let mut angle_degrees = self.camera.facing.theta.to_degrees();
-                ui.add(Slider::new(&mut angle_degrees, 0_f64..=180_f64).suffix("°"));
-                self.camera.facing.theta = angle_degrees.to_radians();
+                ui.label("Look at");
+
+                ui.add(
+                    DragValue::new(&mut self.look_at.x)
+                        .clamp_range(-1_f64..=1_f64)
+                        .speed(0.01),
+                );
+                ui.add(
+                    DragValue::new(&mut self.look_at.y)
+                        .clamp_range(-1_f64..=1_f64)
+                        .speed(0.01),
+                );
+                ui.add(
+                    DragValue::new(&mut self.look_at.z)
+                        .clamp_range(-1_f64..=1_f64)
+                        .speed(0.01),
+                );
             });
-            ui.horizontal(|ui| {
-                ui.label("Phi");
-                let mut angle_degrees = self.camera.facing.phi.to_degrees();
-                ui.add(Slider::new(&mut angle_degrees, 0_f64..=360_f64).suffix("°"));
-                self.camera.facing.phi = angle_degrees.to_radians();
-            });
+
+            self.camera.look_at(
+                &Vector3::new(self.look_at.x, self.look_at.y, self.look_at.z),
+                &Vector3::new(0_f64, 1_f64, 0_f64),
+            );
 
             ui.add(Checkbox::new(&mut self.gr, "GR"));
         });
@@ -110,7 +132,7 @@ impl eframe::App for MyApp {
 
             // update the camera resolution
             let space = ui.available_size();
-            let res = space * pixelsperpoint * self.res_scale;
+            let res = space * pixelsperpoint * self.res_scale as f32;
             self.camera.resolution = Vector2::new(res.x as u32, res.y as u32);
 
             // Try to update the image from the render worker
@@ -119,7 +141,8 @@ impl eframe::App for MyApp {
                 self.previous_render = Some(img);
 
                 // Send a new request
-                let request = RenderRequest::new(self.camera, self.environment.clone(), self.gr);
+                let request =
+                    RenderRequest::new(self.camera, self.environment.clone(), self.radius, self.gr);
                 self.render_worker.render(request);
             }
 
@@ -163,9 +186,16 @@ impl eframe::App for MyApp {
                 );
                 // show the image
 
-                ui.vertical_centered(|ui| {
-                    ui.image(texture, space);
-                });
+                let img_ui = ui.vertical_centered(|ui| ui.image(texture, space)).inner;
+
+                if img_ui.hovered() {
+                    // allow scrolling when hovered
+                    let scroll = ctx.input(|i| i.scroll_delta.y);
+                    if scroll != 0_f32 {
+                        self.camera.fov =
+                            (self.camera.fov * 2_f64.powf(scroll as f64 / 1000_f64)).max(0_f64);
+                    }
+                }
             }
             ctx.request_repaint();
         });

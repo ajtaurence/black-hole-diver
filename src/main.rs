@@ -7,6 +7,7 @@ use eframe::egui;
 use egui::{Checkbox, ColorImage, DragValue, Vec2};
 use image::GenericImageView;
 use nalgebra::{Vector2, Vector3};
+use rfd::FileDialog;
 use std::sync::Arc;
 
 struct MyApp {
@@ -124,6 +125,17 @@ impl eframe::App for MyApp {
             );
 
             ui.add(Checkbox::new(&mut self.gr, "GR"));
+
+            if let Some(render) = self.previous_render.as_ref() {
+                if ui.button("Save Image").clicked() {
+                    if let Some(file_path) = FileDialog::new()
+                        .add_filter("Image", &["png", "jpg", "tif"])
+                        .save_file()
+                    {
+                        let _ = render.save(file_path);
+                    }
+                }
+            }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

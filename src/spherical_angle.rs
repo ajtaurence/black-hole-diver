@@ -1,4 +1,4 @@
-use crate::math::{hits_black_hole, n_mod_m, rain_angle_to_map_angle};
+use crate::math::{hits_black_hole_no_gr, n_mod_m, rain_angle_to_map_angle};
 use nalgebra::Vector3;
 use std::f64::consts::PI;
 
@@ -53,7 +53,7 @@ impl RainAngle {
     }
 
     pub fn try_to_map_angle_no_gr(self, r: f64) -> Option<MapAngle> {
-        if hits_black_hole(self.theta, r) {
+        if hits_black_hole_no_gr(self.theta, r) {
             return None;
         } else {
             return Some(MapAngle::new(self.theta, self.phi));

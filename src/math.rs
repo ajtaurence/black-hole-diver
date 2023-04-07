@@ -133,3 +133,13 @@ where
 
     Some((theta_map_normalized, phi_map))
 }
+
+/// Returns true if the photon at this rain angle hits the "event horizon" of the black hole
+/// without general relativity
+pub fn hits_black_hole_no_gr<T: Float + 'static>(theta_rain: T, r: T) -> bool
+where
+    i32: AsPrimitive<T>,
+    f64: AsPrimitive<T>,
+{
+    theta_rain.tan() * r < 2.as_() && theta_rain < (PI / 2_f64).as_()
+}

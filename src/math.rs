@@ -141,5 +141,7 @@ where
     i32: AsPrimitive<T>,
     f64: AsPrimitive<T>,
 {
-    theta_rain.tan() * r < 2.as_() && theta_rain < (PI / 2_f64).as_()
+    r < 2.as_()
+        || (theta_rain.tan() < 2.as_() / (r.powi(2) - 4.as_()).sqrt()
+            && theta_rain <= (PI / 2_f64).as_())
 }

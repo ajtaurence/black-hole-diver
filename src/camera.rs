@@ -160,7 +160,7 @@ impl PerspectiveCamera {
     }
 
     pub fn zoom(&mut self, scroll: f32, sensitivity: f64) {
-        self.fov = (self.fov * 2_f64.powf(scroll as f64 * 0.0005 * sensitivity)).clamp(0_f64, PI);
+        self.fov = (self.fov * 2_f64.powf(-scroll as f64 * 0.0005 * sensitivity)).clamp(0_f64, PI);
     }
 
     pub fn right(&self) -> Vector3<f64> {

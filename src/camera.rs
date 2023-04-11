@@ -5,7 +5,7 @@ use nalgebra::{Rotation3, Vector2, Vector3};
 use crate::spherical_angle::{RainAngle, SphericalAngle};
 
 // Camera is assumed to be at the origin
-pub trait Camera: Sync {
+pub trait Camera: Default + Clone + Sync {
     // returns the resolution of the camera
     fn resolution(&self) -> Vector2<u32>;
 
@@ -13,6 +13,7 @@ pub trait Camera: Sync {
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle;
 }
 
+#[derive(Clone)]
 pub struct EquirectangularCamera {
     // resolution of the camera
     resolution: Vector2<u32>,
@@ -77,7 +78,7 @@ impl Camera for EquirectangularCamera {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct PerspectiveCamera {
     // resolution of the camera
     pub resolution: Vector2<u32>,
@@ -122,6 +123,19 @@ impl PerspectiveCamera {
         self.resolution.y as f64 / (2_f64 * (self.fov / 2_f64).tan())
     }
 
+    // adjusts the pitch of the camera by the angle
+    pub fn pitch(&mut self, angle: f64) {
+        self.inverse_view_matrix =
+            Rotation3::from_scaled_axis(self.right() * angle) * self.inverse_view_matrix;
+    }
+
+    // adjusts the yaw of the camera by the angle
+    pub fn yaw(&mut self, angle: f64) {
+        self.inverse_view_matrix = Rotation3::from_scaled_axis(
+            Vector3::new(0_f64, self.up()[1], 0_f64).normalize() * angle,
+        ) * self.inverse_view_matrix;
+    }
+
     // makes the camera look at dir
     pub fn look_at(&mut self, dir: &Vector3<f64>, up: &Vector3<f64>) {
         // direction of z axis is -view direction
@@ -138,6 +152,15 @@ impl PerspectiveCamera {
         let y = z.cross(&x);
 
         self.inverse_view_matrix = Rotation3::from_basis_unchecked(&[x, y, z]);
+    }
+
+    pub fn drag_delta(&mut self, delta: egui::Vec2, sensitivity: f64) {
+        self.pitch(-delta.y as f64 * self.fov * 0.0005 * sensitivity);
+        self.yaw(-delta.x as f64 * self.fov * 0.0005 * sensitivity)
+    }
+
+    pub fn zoom(&mut self, scroll: f32, sensitivity: f64) {
+        self.fov = (self.fov * 2_f64.powf(scroll as f64 * 0.0005 * sensitivity)).clamp(0_f64, PI);
     }
 
     pub fn right(&self) -> Vector3<f64> {

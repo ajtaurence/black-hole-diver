@@ -1,6 +1,5 @@
 use crate::spherical_angle::{MapAngle, SphericalAngle};
-use image::{ImageBuffer, Pixel, Rgb};
-use noise::NoiseFn;
+use image::{ImageBuffer, Rgb};
 use std::f64::consts::PI;
 
 pub type Image = ImageBuffer<Rgb<u8>, Vec<u8>>;
@@ -10,12 +9,24 @@ pub enum EnvironmentError {
     NotEquirectangularImage,
 }
 
-pub trait Environment: Send + Sync {
+pub trait Environment: Default + Send + Sync {
     fn get_pixel(&self, angle: MapAngle) -> Rgb<u8>;
 }
 
+#[derive(PartialEq)]
 pub struct ImageEnvironment {
     image: Image,
+}
+
+impl Default for ImageEnvironment {
+    fn default() -> Self {
+        ImageEnvironment::new(
+            image::load_from_memory(include_bytes!("../sky.tif"))
+                .unwrap()
+                .into_rgb8(),
+        )
+        .unwrap()
+    }
 }
 
 impl ImageEnvironment {
@@ -38,40 +49,5 @@ impl Environment for ImageEnvironment {
             x.min(self.image.width() - 1),
             y.min(self.image.height() - 1),
         )
-    }
-}
-
-pub struct ProceeduralEnvironment<N>
-where
-    N: NoiseFn<f64, 3>,
-{
-    noise: N,
-    pub scale: f64,
-}
-
-impl<N> ProceeduralEnvironment<N>
-where
-    N: NoiseFn<f64, 3>,
-{
-    pub fn new(noise: N, scale: f64) -> Self {
-        Self { noise, scale }
-    }
-}
-
-impl<N> Environment for ProceeduralEnvironment<N>
-where
-    N: NoiseFn<f64, 3> + Send + Sync,
-{
-    fn get_pixel(&self, angle: MapAngle) -> Rgb<u8> {
-        let r = 1_f64 / self.scale;
-
-        let point = [
-            r * angle.theta().sin() * angle.phi().cos(),
-            r * angle.theta().sin() * angle.phi().sin(),
-            r * angle.theta().cos(),
-        ];
-
-        let subpixel_value = (self.noise.get(point) * u8::MAX as f64) as u8;
-        *Pixel::from_slice(&[subpixel_value, subpixel_value, subpixel_value])
     }
 }

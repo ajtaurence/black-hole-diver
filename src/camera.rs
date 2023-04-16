@@ -1,6 +1,5 @@
-use std::f64::consts::PI;
-
 use nalgebra::{Rotation3, Vector2, Vector3};
+use std::f64::consts::PI;
 
 use crate::spherical_angle::{RainAngle, SphericalAngle};
 
@@ -13,13 +12,26 @@ pub trait Camera: Default + Clone + Sync {
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle;
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct EquirectangularCamera {
     // resolution of the camera
-    resolution: Vector2<u32>,
+    vertical_resolution: u32,
     // view matrix for transforming from local space to world space
     // column vectors are right, up, facing in global space
     pub inverse_view_matrix: Rotation3<f64>,
+}
+
+impl From<PerspectiveCamera> for EquirectangularCamera {
+    fn from(camera: PerspectiveCamera) -> Self {
+        EquirectangularCamera {
+            // probably not the best way to scale the resolution but this works for now
+            vertical_resolution: (camera.resolution.y as f64 * PI / camera.fov) as u32,
+            // rotate the perspective view matrix so that it makes the forward vector point toward the center in equirectangular projection
+            inverse_view_matrix: camera.inverse_view_matrix
+                * Rotation3::from_scaled_axis(Vector3::new(0_f64, 0_f64, PI / 2_f64))
+                * Rotation3::from_scaled_axis(Vector3::new(0_f64, -PI / 2_f64, 0_f64)),
+        }
+    }
 }
 
 impl Default for EquirectangularCamera {
@@ -34,9 +46,9 @@ impl Default for EquirectangularCamera {
 }
 
 impl EquirectangularCamera {
-    pub fn new(height: u32, inverse_view_matrix: Rotation3<f64>) -> Self {
+    pub fn new(vertical_resolution: u32, inverse_view_matrix: Rotation3<f64>) -> Self {
         EquirectangularCamera {
-            resolution: Vector2::new(height, 2 * height),
+            vertical_resolution,
             inverse_view_matrix,
         }
     }
@@ -58,17 +70,29 @@ impl EquirectangularCamera {
 
         self.inverse_view_matrix = Rotation3::from_basis_unchecked(&[x, y, z]);
     }
+
+    pub fn right(&self) -> Vector3<f64> {
+        self.inverse_view_matrix.matrix().column(0).into()
+    }
+
+    pub fn up(&self) -> Vector3<f64> {
+        self.inverse_view_matrix.matrix().column(1).into()
+    }
+
+    pub fn facing(&self) -> Vector3<f64> {
+        self.inverse_view_matrix.matrix().column(2).into()
+    }
 }
 
 impl Camera for EquirectangularCamera {
     fn resolution(&self) -> Vector2<u32> {
-        self.resolution
+        Vector2::new(2 * self.vertical_resolution, self.vertical_resolution)
     }
 
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle {
         // local coordinates
-        let theta = PI * pixel.y as f64 / self.resolution.y as f64;
-        let phi = PI * pixel.x as f64 / self.resolution.y as f64;
+        let theta = PI * (1_f64 - pixel.y as f64 / self.resolution().y as f64);
+        let phi = PI * pixel.x as f64 / self.resolution().y as f64;
         let local_dir = RainAngle::new(theta, phi).to_vector();
 
         // transform to global

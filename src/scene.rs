@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    camera::Camera,
+    camera::{Camera, EquirectangularCamera, PerspectiveCamera},
     diver::Diver,
     environment::{Environment, Image},
 };
@@ -15,6 +15,17 @@ pub struct Scene<C: Camera, E: Environment> {
     pub env: Arc<E>,
     pub diver: Diver,
     pub gr: bool,
+}
+
+impl<E: Environment> From<Scene<PerspectiveCamera, E>> for Scene<EquirectangularCamera, E> {
+    fn from(scene: Scene<PerspectiveCamera, E>) -> Self {
+        Self {
+            camera: scene.camera.into(),
+            env: scene.env,
+            diver: scene.diver,
+            gr: scene.gr,
+        }
+    }
 }
 
 impl<C: Camera, E: Environment> Clone for Scene<C, E> {

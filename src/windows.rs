@@ -1,6 +1,17 @@
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
+
 use rfd::FileDialog;
 
-use crate::{app::BHDiver, settings::Settings};
+use crate::{app::BHDiver, camera::EquirectangularCamera, scene::Scene, settings::Settings};
+
+macro_rules! unique_id {
+    ($($args:tt)*) => {
+        egui::Id::new((file!(), line!(), column!(), $($args)*))
+    };
+}
 
 pub const ALL_WINDOWS: &[Window] = &[SETTINGS_WINDOW, INFO_WINDOW, RENDER_WINDOW];
 
@@ -56,14 +67,49 @@ pub const RENDER_WINDOW: Window = Window {
                 });
             }
         }
+
+        // get rendering mutex from temp data or insert false
+        let rendering_id = unique_id!();
+        let rendering: Arc<Mutex<bool>> = ui
+            .data_mut(|w| w.get_temp(rendering_id))
+            .unwrap_or_default();
+        ui.data_mut(|w| w.insert_temp(rendering_id, rendering.clone()));
+
+        ui.horizontal(|ui| {
+            // add render 360 button if not currently rendering
+            if ui
+                .add_enabled(
+                    !*rendering.lock().unwrap(),
+                    egui::Button::new("Render 360°"),
+                )
+                .clicked()
+            {
+                if let Some(file_path) = FileDialog::new()
+                    .add_filter("Image", &["png", "jpg", "tif"])
+                    .save_file()
+                {
+                    let rendering_clone = rendering.clone();
+                    let scene = app.scene.clone();
+                    // we are now rendering
+                    *rendering_clone.lock().unwrap() = true;
+                    // start a new thread to render and save the image
+                    thread::spawn(move || {
+                        let image = Scene::<EquirectangularCamera, _>::from(scene).render();
+                        let _ = image.save(file_path);
+                        if let Ok(mut rendering_clone) = rendering_clone.lock() {
+                            // set rendering to false
+                            *rendering_clone = false;
+                        }
+                    });
+                }
+            }
+            // show spinner when rendering
+            if *rendering.lock().unwrap() {
+                ui.add(egui::Spinner::new());
+            }
+        });
     },
 };
-
-macro_rules! unique_id {
-    ($($args:tt)*) => {
-        egui::Id::new((file!(), line!(), column!(), $($args)*))
-    };
-}
 
 #[allow(unused)]
 fn with_temp_data<F, T>(ui: &mut egui::Ui, f: F)

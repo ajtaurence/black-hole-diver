@@ -3,9 +3,9 @@ use std::sync::Arc;
 use crate::{
     camera::{Camera, EquirectangularCamera, PerspectiveCamera},
     diver::Diver,
-    environment::{Environment, Image},
+    environment::Environment,
 };
-use image::{ImageBuffer, Pixel, Rgb};
+use image::{ImageBuffer, Pixel, Rgb, RgbImage};
 use nalgebra::Vector2;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 
@@ -44,11 +44,11 @@ impl<C: Camera, E: Environment> Scene<C, E> {
         }
     }
 
-    pub fn render(&self) -> Image {
+    pub fn render(&self) -> RgbImage {
         let res = self.camera.resolution();
 
         // Create the image buffer
-        let mut buf: Image = ImageBuffer::new(res.x, res.y);
+        let mut buf: RgbImage = ImageBuffer::new(res.x, res.y);
 
         // Calculate pixels in parallel
         if self.gr {

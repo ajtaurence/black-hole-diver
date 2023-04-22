@@ -1,8 +1,6 @@
 use crate::spherical_angle::{MapAngle, SphericalAngle};
-use image::{ImageBuffer, Rgb};
+use image::{Rgb, RgbImage};
 use std::f64::consts::PI;
-
-pub type Image = ImageBuffer<Rgb<u8>, Vec<u8>>;
 
 #[derive(Debug)]
 pub enum EnvironmentError {
@@ -15,7 +13,7 @@ pub trait Environment: Default + Send + Sync {
 
 #[derive(PartialEq)]
 pub struct ImageEnvironment {
-    image: Image,
+    image: RgbImage,
 }
 
 impl Default for ImageEnvironment {
@@ -30,7 +28,7 @@ impl Default for ImageEnvironment {
 }
 
 impl ImageEnvironment {
-    pub fn new(image: impl Into<Image>) -> Result<Self, EnvironmentError> {
+    pub fn new(image: impl Into<RgbImage>) -> Result<Self, EnvironmentError> {
         let image = image.into();
 
         if image.width() == 2 * image.height() {

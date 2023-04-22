@@ -1,4 +1,5 @@
-use crate::environment::Image;
+use image::RgbImage;
+
 use crate::scene::Scene;
 use crate::{camera::Camera, environment::Environment};
 use std::ops::Deref;
@@ -8,7 +9,7 @@ use std::time::{Duration, Instant};
 
 pub struct RenderManager<C: Camera, E: Environment> {
     working: Arc<Mutex<bool>>,
-    previous_render: Arc<Mutex<Option<(Image, Duration)>>>,
+    previous_render: Arc<Mutex<Option<(RgbImage, Duration)>>>,
     previous_scene: Option<Scene<C, E>>,
 }
 
@@ -36,7 +37,7 @@ impl<C: Camera, E: Environment> RenderManager<C, E> {
             .is_some()
     }
 
-    pub fn with_render(&self, func: impl FnOnce(&Image, Duration) -> ()) {
+    pub fn with_render(&self, func: impl FnOnce(&RgbImage, Duration) -> ()) {
         if let Some((render, duration)) = self
             .previous_render
             .as_ref()

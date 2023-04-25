@@ -5,7 +5,10 @@ use std::{
 
 use rfd::FileDialog;
 
-use crate::{app::BHDiver, camera::EquirectangularCamera, scene::Scene, settings::Settings};
+use crate::{
+    animation::Animation, app::BHDiver, camera::EquirectangularCamera, scene::Scene,
+    settings::Settings,
+};
 
 macro_rules! unique_id {
     ($($args:tt)*) => {
@@ -75,6 +78,7 @@ pub const RENDER_WINDOW: Window = Window {
             .unwrap_or_default();
         ui.data_mut(|w| w.insert_temp(rendering_id, rendering.clone()));
 
+        // 360 rendering
         ui.horizontal(|ui| {
             // add render 360 button if not currently rendering
             if ui
@@ -107,6 +111,59 @@ pub const RENDER_WINDOW: Window = Window {
             if *rendering.lock().unwrap() {
                 ui.add(egui::Spinner::new());
             }
+        });
+
+        // animation rendering
+        ui.horizontal(|ui| {
+            let frames_id = unique_id!();
+            let duration_id = unique_id!();
+
+            let mut frames: usize = ui.data_mut(|w| w.get_temp(frames_id)).unwrap_or(30);
+            let mut duration: f64 = ui.data_mut(|w| w.get_temp(duration_id)).unwrap_or(1_f64);
+
+            ui.label("Frames");
+            ui.add(egui::DragValue::new(&mut frames));
+            ui.label("Duration");
+            ui.add(
+                egui::DragValue::new(&mut duration)
+                    .clamp_range(0_f64..=app.scene.diver.final_time()),
+            );
+
+            // add render 360 button if not currently rendering
+            if ui
+                .add_enabled(
+                    !*rendering.lock().unwrap(),
+                    egui::Button::new("Render Animation"),
+                )
+                .clicked()
+            {
+                if let Some(file_path) = FileDialog::new()
+                    .add_filter("Image", &["png", "jpg", "tif"])
+                    .save_file()
+                {
+                    let rendering_clone = rendering.clone();
+                    let animation =
+                        Animation::from_scene_duration(app.scene.clone(), duration, frames);
+                    // we are now rendering
+                    *rendering_clone.lock().unwrap() = true;
+                    // start a new thread to render and save the image
+                    thread::spawn(move || {
+                        let _ = animation.save_frames(file_path);
+
+                        if let Ok(mut rendering_clone) = rendering_clone.lock() {
+                            // set rendering to false
+                            *rendering_clone = false;
+                        }
+                    });
+                }
+            }
+            // show spinner when rendering
+            if *rendering.lock().unwrap() {
+                ui.add(egui::Spinner::new());
+            }
+
+            ui.data_mut(|w| w.insert_temp(frames_id, frames));
+            ui.data_mut(|w| w.insert_temp(duration_id, duration));
         });
     },
 };

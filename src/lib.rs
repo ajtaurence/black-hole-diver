@@ -9,3 +9,4 @@ pub mod scene;
 pub mod settings;
 pub mod spherical_angle;
 pub mod windows;
+pub mod animation;

@@ -1,20 +1,19 @@
 use crate::{
     animation::{Animation, Frame},
-    camera::{Camera, EquirectangularCamera, PerspectiveCamera},
     scene::Scene,
     traits::Interpolate,
 };
 use std::collections::BTreeMap;
 
-pub struct Timeline<C: Camera> {
+pub struct Timeline {
     pub start_frame: i32,
     pub end_frame: i32,
     pub fps: f32,
     pub current_frame: i32,
-    keyframes: BTreeMap<i32, Scene<C>>,
+    keyframes: BTreeMap<i32, Scene>,
 }
 
-impl<C: Camera + PartialEq> Timeline<C> {
+impl Timeline {
     pub fn new(start_frame: i32, end_frame: i32, fps: f32) -> Self {
         let mut keyframes = BTreeMap::new();
 
@@ -30,7 +29,7 @@ impl<C: Camera + PartialEq> Timeline<C> {
         }
     }
 
-    pub fn get_scene(&self, frame: i32) -> Scene<C> {
+    pub fn get_scene(&self, frame: i32) -> Scene {
         if let Some(scene) = self.keyframes.get(&frame) {
             return Clone::clone(scene);
         }
@@ -48,11 +47,11 @@ impl<C: Camera + PartialEq> Timeline<C> {
         }
     }
 
-    pub fn get_current_scene(&self) -> Scene<C> {
+    pub fn get_current_scene(&self) -> Scene {
         self.get_scene(self.current_frame)
     }
 
-    pub fn with_current_scene(&mut self, edit_scene: impl FnOnce(&mut Scene<C>)) {
+    pub fn with_current_scene(&mut self, edit_scene: impl FnOnce(&mut Scene)) {
         let mut scene = self.get_current_scene();
 
         edit_scene(&mut scene);
@@ -60,17 +59,17 @@ impl<C: Camera + PartialEq> Timeline<C> {
         self.set_scene_if_different(self.current_frame, scene)
     }
 
-    pub fn set_scene(&mut self, frame: i32, scene: Scene<C>) {
+    pub fn set_scene(&mut self, frame: i32, scene: Scene) {
         self.keyframes.insert(frame, scene);
     }
 
-    pub fn set_scene_if_different(&mut self, frame: i32, scene: Scene<C>) {
+    pub fn set_scene_if_different(&mut self, frame: i32, scene: Scene) {
         if scene != self.get_scene(frame) {
             self.set_scene(frame, scene);
         }
     }
 
-    pub fn to_animation(&self) -> Animation<C> {
+    pub fn to_animation(&self) -> Animation {
         Animation::new(
             (self.start_frame..=self.end_frame)
                 .into_iter()
@@ -89,7 +88,7 @@ impl<C: Camera + PartialEq> Timeline<C> {
     }
 }
 
-impl<C: Camera> Default for Timeline<C> {
+impl Default for Timeline {
     fn default() -> Self {
         let mut keyframes = BTreeMap::new();
         keyframes.insert(0, Scene::default());
@@ -100,22 +99,6 @@ impl<C: Camera> Default for Timeline<C> {
             fps: 30_f32,
             current_frame: 0,
             keyframes,
-        }
-    }
-}
-
-impl Into<Timeline<EquirectangularCamera>> for Timeline<PerspectiveCamera> {
-    fn into(self) -> Timeline<EquirectangularCamera> {
-        Timeline {
-            start_frame: self.start_frame,
-            end_frame: self.end_frame,
-            fps: self.fps,
-            current_frame: self.current_frame,
-            keyframes: self
-                .keyframes
-                .into_iter()
-                .map(|(k, v)| (k, v.into()))
-                .collect(),
         }
     }
 }

@@ -5,7 +5,7 @@ pub mod camera;
 pub mod diver;
 pub mod environment;
 pub mod math;
-pub mod render_manager;
+pub mod preview_manager;
 pub mod scene;
 pub mod settings;
 pub mod spherical_angle;

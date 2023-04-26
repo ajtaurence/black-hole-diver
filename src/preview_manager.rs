@@ -1,4 +1,4 @@
-use crate::camera::Camera;
+use crate::camera::Projection;
 use crate::scene::Scene;
 use image::RgbImage;
 use nalgebra::Vector2;
@@ -7,13 +7,13 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub struct RenderManager<C: Camera> {
+pub struct PreviewManager {
     working: Arc<Mutex<bool>>,
     previous_render: Arc<Mutex<Option<(RgbImage, Duration)>>>,
-    previous_scene_resolution: Option<(Scene<C>, Vector2<u32>)>,
+    previous_scene_resolution: Option<(Scene, Vector2<u32>)>,
 }
 
-impl<C: Camera> Default for RenderManager<C> {
+impl Default for PreviewManager {
     fn default() -> Self {
         Self {
             working: Arc::new(Mutex::new(false)),
@@ -23,7 +23,7 @@ impl<C: Camera> Default for RenderManager<C> {
     }
 }
 
-impl<C: Camera> RenderManager<C> {
+impl PreviewManager {
     pub fn new() -> Self {
         Default::default()
     }
@@ -54,11 +54,7 @@ impl<C: Camera> RenderManager<C> {
         *self.working.lock().unwrap()
     }
 
-    pub fn new_render(&mut self, scene: Scene<C>, resolution: Vector2<u32>)
-    where
-        C: Camera + Send + Sync,
-        Scene<C>: PartialEq,
-    {
+    pub fn new_render(&mut self, scene: Scene, resolution: Vector2<u32>) {
         // if the scene is the same as the last scene then don't re-render it
         if let Some((previous_scene, previous_resolution)) = &self.previous_scene_resolution {
             if scene == *previous_scene && resolution == *previous_resolution {
@@ -81,7 +77,7 @@ impl<C: Camera> RenderManager<C> {
             thread::spawn(move || {
                 // rendering logic
                 let start = Instant::now();
-                let render = scene.render(resolution);
+                let render = scene.render(Projection::Perspective, resolution);
 
                 // save render
                 *previous_render.lock().unwrap() = Some((render, Instant::now() - start));

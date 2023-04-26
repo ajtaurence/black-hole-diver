@@ -1,5 +1,5 @@
 use crate::{
-    camera::{Camera, EquirectangularCamera, PerspectiveCamera},
+    camera::{Camera, Projection},
     diver::Diver,
     environment::Environment,
     traits::Interpolate,
@@ -10,32 +10,21 @@ use rayon::prelude::{ParallelBridge, ParallelIterator};
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-pub struct Scene<C: Camera> {
-    pub camera: C,
+pub struct Scene {
+    pub camera: Camera,
     pub env: Arc<Environment>,
     pub diver: Diver,
     pub gr: bool,
 }
 
-impl From<Scene<PerspectiveCamera>> for Scene<EquirectangularCamera> {
-    fn from(scene: Scene<PerspectiveCamera>) -> Self {
-        Self {
-            camera: scene.camera.into(),
-            env: scene.env,
-            diver: scene.diver,
-            gr: scene.gr,
-        }
-    }
-}
-
-impl<C: Camera> Clone for Scene<C> {
+impl Clone for Scene {
     fn clone(&self) -> Self {
-        Self::new(self.camera.clone(), self.env.clone(), self.diver, self.gr)
+        Self::new(self.camera, self.env.clone(), self.diver, self.gr)
     }
 }
 
-impl<C: Camera> Scene<C> {
-    pub fn new(camera: C, env: Arc<Environment>, diver: Diver, gr: bool) -> Scene<C> {
+impl Scene {
+    pub fn new(camera: Camera, env: Arc<Environment>, diver: Diver, gr: bool) -> Scene {
         Self {
             camera,
             env,
@@ -44,7 +33,7 @@ impl<C: Camera> Scene<C> {
         }
     }
 
-    pub fn render(&self, resolution: Vector2<u32>) -> RgbImage {
+    pub fn render(&self, projection: Projection, resolution: Vector2<u32>) -> RgbImage {
         // Create the image buffer
         let mut buf: RgbImage = ImageBuffer::new(resolution.x, resolution.y);
 
@@ -53,9 +42,9 @@ impl<C: Camera> Scene<C> {
             buf.enumerate_pixels_mut()
                 .par_bridge()
                 .for_each(|(x, y, pixel)| {
-                    let rain_angle = self
-                        .camera
-                        .pixel_to_rain_angle(Vector2::new(x, y), resolution);
+                    let rain_angle =
+                        self.camera
+                            .pixel_to_rain_angle(projection, Vector2::new(x, y), resolution);
 
                     if let Some(map_angle) = rain_angle.to_map_angle(self.diver.position()) {
                         // Successful map angle
@@ -70,9 +59,9 @@ impl<C: Camera> Scene<C> {
             buf.enumerate_pixels_mut()
                 .par_bridge()
                 .for_each(|(x, y, pixel)| {
-                    let rain_angle = self
-                        .camera
-                        .pixel_to_rain_angle(Vector2::new(x, y), resolution);
+                    let rain_angle =
+                        self.camera
+                            .pixel_to_rain_angle(projection, Vector2::new(x, y), resolution);
 
                     if let Some(map_angle) =
                         rain_angle.try_to_map_angle_no_gr(self.diver.position())
@@ -90,8 +79,8 @@ impl<C: Camera> Scene<C> {
     }
 }
 
-impl<C: Camera> Interpolate for Scene<C> {
-    fn interpolate(&self, other: &Scene<C>, factor: f32) -> Scene<C> {
+impl Interpolate for Scene {
+    fn interpolate(&self, other: &Scene, factor: f32) -> Scene {
         let camera = self.camera.interpolate(&other.camera, factor);
         Scene::new(
             camera,
@@ -102,7 +91,7 @@ impl<C: Camera> Interpolate for Scene<C> {
     }
 }
 
-impl<C: Camera> Default for Scene<C> {
+impl Default for Scene {
     fn default() -> Self {
         Self {
             camera: Default::default(),

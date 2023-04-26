@@ -1,6 +1,5 @@
 use crate::{
-    camera::PerspectiveCamera,
-    render_manager::RenderManager,
+    preview_manager::PreviewManager,
     settings::Settings,
     timeline::Timeline,
     windows::{ALL_WINDOWS, INFO_WINDOW, RENDER_WINDOW, SETTINGS_WINDOW},
@@ -12,11 +11,11 @@ use nalgebra::Vector2;
 use std::time::Instant;
 
 pub struct BHDiver {
-    pub timeline: Timeline<PerspectiveCamera>,
+    pub timeline: Timeline,
     pub settings: Settings,
     pub time_of_last_frame: Instant,
     pub animating: bool,
-    pub render_manager: RenderManager<PerspectiveCamera>,
+    pub preview_manager: PreviewManager,
 }
 
 impl Default for BHDiver {
@@ -26,7 +25,7 @@ impl Default for BHDiver {
             settings: Default::default(),
             time_of_last_frame: Instant::now(),
             animating: false,
-            render_manager: Default::default(),
+            preview_manager: Default::default(),
         }
     }
 }
@@ -40,7 +39,8 @@ impl BHDiver {
 
         let mut app = Self::default();
 
-        app.render_manager
+        // initialize first preview
+        app.preview_manager
             .new_render(app.timeline.get_current_scene().clone(), Vector2::new(1, 1));
 
         app
@@ -131,7 +131,7 @@ impl eframe::App for BHDiver {
             let res = space * pixelsperpoint * self.settings.resolution_scale;
             let preview_res = Vector2::new(res.x as u32, res.y as u32);
 
-            self.render_manager.with_render(|render, _time| {
+            self.preview_manager.with_render(|render, _time| {
                 // get the aspect ratio of the image
                 let aspect_ratio_img = render.width() as f32 / render.height() as f32;
 
@@ -203,10 +203,10 @@ impl eframe::App for BHDiver {
             });
 
             // Start a new render
-            self.render_manager
+            self.preview_manager
                 .new_render(self.timeline.get_current_scene(), preview_res);
 
-            if self.render_manager.is_working() {
+            if self.preview_manager.is_working() {
                 ctx.request_repaint();
             }
         });

@@ -4,10 +4,7 @@ use std::{
     thread,
 };
 
-use crate::{
-    animation::Animation, app::BHDiver, camera::EquirectangularCamera, scene::Scene,
-    settings::Settings,
-};
+use crate::{animation::Animation, app::BHDiver, scene::Scene, settings::Settings};
 
 macro_rules! unique_id {
     ($($args:tt)*) => {
@@ -56,7 +53,7 @@ pub const RENDER_WINDOW: Window = Window {
 
         if ui
             .add_enabled(
-                app.render_manager.is_render_available(),
+                app.preview_manager.is_render_available(),
                 egui::Button::new("Save Image"),
             )
             .clicked()
@@ -65,7 +62,7 @@ pub const RENDER_WINDOW: Window = Window {
                 .add_filter("Image", &["png", "jpg", "tif"])
                 .save_file()
             {
-                app.render_manager.with_render(|render, _| {
+                app.preview_manager.with_render(|render, _| {
                     let _ = render.save(file_path);
                 });
             }

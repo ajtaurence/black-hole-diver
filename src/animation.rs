@@ -1,59 +1,28 @@
-use crate::{
-    camera::{Camera, EquirectangularCamera, PerspectiveCamera},
-    scene::Scene,
-    traits::Interpolate,
-};
+use crate::{camera::Projection, scene::Scene};
 use image::{ImageError, RgbImage};
 use nalgebra::Vector2;
 use std::{ffi::OsStr, path::Path};
 
 #[derive(Clone)]
-pub struct Frame<C: Camera>(pub i32, pub Scene<C>);
+pub struct Frame(pub i32, pub Scene);
 
-impl<C: Camera> Default for Frame<C> {
+impl Default for Frame {
     fn default() -> Self {
         Frame(0, Default::default())
     }
 }
 
-impl<C: Camera> Interpolate for Frame<C> {
-    fn interpolate(&self, other: &Self, factor: f32) -> Self {
-        Self(
-            self.0.interpolate(&other.0, factor),
-            self.1.interpolate(&other.1, factor),
-        )
-    }
-}
-
-impl<C: Camera> PartialEq for Frame<C> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl From<Frame<PerspectiveCamera>> for Frame<EquirectangularCamera> {
-    fn from(value: Frame<PerspectiveCamera>) -> Self {
-        Self(value.0, value.1.into())
-    }
-}
-
-impl<C: Camera> PartialOrd for Frame<C> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
 #[derive(Default)]
-pub struct Animation<C: Camera> {
-    frames: Vec<Frame<C>>,
+pub struct Animation {
+    frames: Vec<Frame>,
 }
 
-impl<C: Camera> Animation<C> {
-    pub fn new(frames: Vec<Frame<C>>) -> Self {
+impl Animation {
+    pub fn new(frames: Vec<Frame>) -> Self {
         Animation { frames }
     }
 
-    pub fn from_scene_duration(initial_scene: Scene<C>, duration: f64, n_frames: usize) -> Self {
+    pub fn from_scene_duration(initial_scene: Scene, duration: f64, n_frames: usize) -> Self {
         Self::new(
             (0..n_frames)
                 .into_iter()
@@ -68,10 +37,14 @@ impl<C: Camera> Animation<C> {
         )
     }
 
-    pub fn render_frames(self, resolution: Vector2<u32>) -> impl Iterator<Item = (i32, RgbImage)> {
+    pub fn render_frames(
+        self,
+        projection: Projection,
+        resolution: Vector2<u32>,
+    ) -> impl Iterator<Item = (i32, RgbImage)> {
         self.frames
             .into_iter()
-            .map(move |frame| (frame.0, frame.1.render(resolution)))
+            .map(move |frame| (frame.0, frame.1.render(projection, resolution)))
     }
 
     pub fn save_frames<Q: AsRef<Path>>(

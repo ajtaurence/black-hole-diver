@@ -45,9 +45,6 @@ pub const INFO_WINDOW: Window = Window {
                 ui.label("Vertical field of view");
                 ui.label(format!("{:.3}°", current_scene.camera.fov.to_degrees()));
                 ui.end_row();
-
-                ui.label("Focal length");
-                ui.label(format!("{:.0} px", current_scene.camera.get_focal_length()));
             });
     },
 };
@@ -84,6 +81,7 @@ pub const RENDER_WINDOW: Window = Window {
         // 360 rendering
         ui.horizontal(|ui| {
             // add render 360 button if not currently rendering
+            /*
             if ui
                 .add_enabled(
                     !*rendering.lock().unwrap(),
@@ -114,6 +112,7 @@ pub const RENDER_WINDOW: Window = Window {
             if *rendering.lock().unwrap() {
                 ui.add(egui::Spinner::new());
             }
+            */
         });
 
         // animation rendering
@@ -133,6 +132,7 @@ pub const RENDER_WINDOW: Window = Window {
             );
 
             // add render 360 button if not currently rendering
+            /*
             if ui
                 .add_enabled(
                     !*rendering.lock().unwrap(),
@@ -164,6 +164,7 @@ pub const RENDER_WINDOW: Window = Window {
             if *rendering.lock().unwrap() {
                 ui.add(egui::Spinner::new());
             }
+            */
 
             ui.data_mut(|w| w.insert_temp(frames_id, frames));
             ui.data_mut(|w| w.insert_temp(duration_id, duration));

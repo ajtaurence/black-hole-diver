@@ -41,7 +41,7 @@ impl BHDiver {
         let mut app = Self::default();
 
         app.render_manager
-            .new_render(app.timeline.get_current_scene().clone());
+            .new_render(app.timeline.get_current_scene().clone(), Vector2::new(1, 1));
 
         app
     }
@@ -126,14 +126,12 @@ impl eframe::App for BHDiver {
             // get pixels per egui point
             let pixelsperpoint = frame.info().native_pixels_per_point.unwrap();
 
-            let mut render_scene = self.timeline.get_current_scene();
+            // update the preview resolution
+            let space = ui.available_size();
+            let res = space * pixelsperpoint * self.settings.resolution_scale;
+            let preview_res = Vector2::new(res.x as u32, res.y as u32);
 
             self.render_manager.with_render(|render, _time| {
-                // update the camera resolution
-                let space = ui.available_size();
-                let res = space * pixelsperpoint * self.settings.resolution_scale;
-                render_scene.camera.resolution = Vector2::new(res.x as u32, res.y as u32);
-
                 // get the aspect ratio of the image
                 let aspect_ratio_img = render.width() as f32 / render.height() as f32;
 
@@ -205,7 +203,8 @@ impl eframe::App for BHDiver {
             });
 
             // Start a new render
-            self.render_manager.new_render(render_scene);
+            self.render_manager
+                .new_render(self.timeline.get_current_scene(), preview_res);
 
             if self.render_manager.is_working() {
                 ctx.request_repaint();

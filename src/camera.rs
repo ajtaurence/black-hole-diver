@@ -6,19 +6,10 @@ use crate::{
     traits::Interpolate,
 };
 
-// TODO: remove resolution from camera and add it to render properties
-
 // Camera is assumed to be at the origin
 pub trait Camera: Interpolate + Default + Clone + Sync + 'static {
-    // returns the resolution of the camera
-    fn resolution(&self) -> Vector2<u32>;
-
     // returns the ray direction through this pixel
-    fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle;
-
-    fn set_x_resolution(&mut self, xres: u32);
-
-    fn set_y_resolution(&mut self, yres: u32);
+    fn pixel_to_rain_angle(&self, pixel: Vector2<u32>, resolution: Vector2<u32>) -> RainAngle;
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -39,8 +30,6 @@ impl ToString for Cameras {
 
 #[derive(Clone, PartialEq)]
 pub struct EquirectangularCamera {
-    // resolution of the camera
-    vertical_resolution: u32,
     // view matrix for transforming from local space to world space
     // column vectors are right, up, facing in global space
     pub inverse_view_matrix: Rotation3<f64>,
@@ -49,8 +38,6 @@ pub struct EquirectangularCamera {
 impl From<PerspectiveCamera> for EquirectangularCamera {
     fn from(camera: PerspectiveCamera) -> Self {
         EquirectangularCamera {
-            // probably not the best way to scale the resolution but this works for now
-            vertical_resolution: (camera.resolution.y as f64 * PI / camera.fov) as u32,
             // rotate the perspective view matrix so that it makes the forward vector point toward the center in equirectangular projection
             inverse_view_matrix: camera.inverse_view_matrix
                 * Rotation3::from_scaled_axis(Vector3::new(0_f64, 0_f64, PI / 2_f64))
@@ -73,7 +60,6 @@ impl Default for EquirectangularCamera {
 impl EquirectangularCamera {
     pub fn new(vertical_resolution: u32, inverse_view_matrix: Rotation3<f64>) -> Self {
         EquirectangularCamera {
-            vertical_resolution,
             inverse_view_matrix,
         }
     }
@@ -110,14 +96,10 @@ impl EquirectangularCamera {
 }
 
 impl Camera for EquirectangularCamera {
-    fn resolution(&self) -> Vector2<u32> {
-        Vector2::new(2 * self.vertical_resolution, self.vertical_resolution)
-    }
-
-    fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle {
+    fn pixel_to_rain_angle(&self, pixel: Vector2<u32>, resolution: Vector2<u32>) -> RainAngle {
         // local coordinates
-        let theta = PI * (1_f64 - pixel.y as f64 / self.resolution().y as f64);
-        let phi = PI * pixel.x as f64 / self.resolution().y as f64;
+        let theta = PI * (1_f64 - pixel.y as f64 / resolution.y as f64);
+        let phi = PI * pixel.x as f64 / resolution.y as f64;
         let local_dir = RainAngle::new(theta, phi).to_vector();
 
         // transform to global
@@ -125,22 +107,11 @@ impl Camera for EquirectangularCamera {
 
         RainAngle::from_vector(dir)
     }
-
-    fn set_x_resolution(&mut self, xres: u32) {
-        self.vertical_resolution = xres / 2;
-    }
-
-    fn set_y_resolution(&mut self, yres: u32) {
-        self.vertical_resolution = yres;
-    }
 }
 
 impl Interpolate for EquirectangularCamera {
     fn interpolate(&self, other: &Self, factor: f32) -> Self {
         EquirectangularCamera {
-            vertical_resolution: self
-                .vertical_resolution
-                .interpolate(&other.vertical_resolution, factor),
             inverse_view_matrix: self
                 .inverse_view_matrix
                 .slerp(&other.inverse_view_matrix, factor as f64),
@@ -150,8 +121,6 @@ impl Interpolate for EquirectangularCamera {
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct PerspectiveCamera {
-    // resolution of the camera
-    pub resolution: Vector2<u32>,
     // vertical field of view in radians
     pub fov: f64,
     // view matrix for transforming from local space to world space
@@ -161,15 +130,12 @@ pub struct PerspectiveCamera {
 
 impl Interpolate for PerspectiveCamera {
     fn interpolate(&self, other: &Self, factor: f32) -> Self {
-        let xres = self.resolution.x.interpolate(&other.resolution.x, factor);
-        let yres = self.resolution.x.interpolate(&other.resolution.y, factor);
         // todo: avoid panic when angles are 180 degrees apart
         let inverse_view_matrix = self
             .inverse_view_matrix
             .slerp(&other.inverse_view_matrix, factor as f64);
 
         Self {
-            resolution: Vector2::new(xres, yres),
             fov: self.fov.interpolate(&other.fov, factor),
             inverse_view_matrix,
         }
@@ -194,20 +160,9 @@ impl Default for PerspectiveCamera {
 impl PerspectiveCamera {
     pub fn new(resolution: Vector2<u32>, fov: f64, inverse_view_matrix: Rotation3<f64>) -> Self {
         PerspectiveCamera {
-            resolution,
             fov,
             inverse_view_matrix,
         }
-    }
-
-    // sets the focal length in pixels
-    pub fn set_focal_length(&mut self, focal_length: f64) {
-        self.fov = 2_f64 * (self.resolution.y as f64 / (2_f64 * focal_length)).atan()
-    }
-
-    // gets the vertical fov in pixels
-    pub fn get_focal_length(&self) -> f64 {
-        self.resolution.y as f64 / (2_f64 * (self.fov / 2_f64).tan())
     }
 
     // adjusts the pitch of the camera by the angle
@@ -264,15 +219,11 @@ impl PerspectiveCamera {
 }
 
 impl Camera for PerspectiveCamera {
-    fn resolution(&self) -> Vector2<u32> {
-        self.resolution
-    }
-
-    fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle {
+    fn pixel_to_rain_angle(&self, pixel: Vector2<u32>, resolution: Vector2<u32>) -> RainAngle {
         // local coordinates
-        let x = pixel.x as f64 - self.resolution.x as f64 / 2_f64;
-        let y = self.resolution.y as f64 / 2_f64 - pixel.y as f64;
-        let z = -self.get_focal_length();
+        let x = pixel.x as f64 - resolution.x as f64 / 2_f64;
+        let y = resolution.y as f64 / 2_f64 - pixel.y as f64;
+        let z = -(resolution.y as f64) / (2_f64 * (self.fov / 2_f64).tan());
 
         // transform to global
         let dir = self
@@ -280,13 +231,5 @@ impl Camera for PerspectiveCamera {
             .transform_vector(&Vector3::new(x, y, z));
 
         RainAngle::from_vector(dir)
-    }
-
-    fn set_x_resolution(&mut self, xres: u32) {
-        self.resolution.x = xres;
-    }
-
-    fn set_y_resolution(&mut self, yres: u32) {
-        self.resolution.y = yres;
     }
 }

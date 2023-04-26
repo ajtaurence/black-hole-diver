@@ -44,18 +44,18 @@ impl<C: Camera> Scene<C> {
         }
     }
 
-    pub fn render(&self) -> RgbImage {
-        let res = self.camera.resolution();
-
+    pub fn render(&self, resolution: Vector2<u32>) -> RgbImage {
         // Create the image buffer
-        let mut buf: RgbImage = ImageBuffer::new(res.x, res.y);
+        let mut buf: RgbImage = ImageBuffer::new(resolution.x, resolution.y);
 
         // Calculate pixels in parallel
         if self.gr {
             buf.enumerate_pixels_mut()
                 .par_bridge()
                 .for_each(|(x, y, pixel)| {
-                    let rain_angle = self.camera.pixel_to_rain_angle(Vector2::new(x, y));
+                    let rain_angle = self
+                        .camera
+                        .pixel_to_rain_angle(Vector2::new(x, y), resolution);
 
                     if let Some(map_angle) = rain_angle.to_map_angle(self.diver.position()) {
                         // Successful map angle
@@ -70,7 +70,9 @@ impl<C: Camera> Scene<C> {
             buf.enumerate_pixels_mut()
                 .par_bridge()
                 .for_each(|(x, y, pixel)| {
-                    let rain_angle = self.camera.pixel_to_rain_angle(Vector2::new(x, y));
+                    let rain_angle = self
+                        .camera
+                        .pixel_to_rain_angle(Vector2::new(x, y), resolution);
 
                     if let Some(map_angle) =
                         rain_angle.try_to_map_angle_no_gr(self.diver.position())

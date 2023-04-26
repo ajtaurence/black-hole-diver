@@ -4,6 +4,7 @@ use crate::{
     traits::Interpolate,
 };
 use image::{ImageError, RgbImage};
+use nalgebra::Vector2;
 use std::{ffi::OsStr, path::Path};
 
 #[derive(Clone)]
@@ -67,18 +68,22 @@ impl<C: Camera> Animation<C> {
         )
     }
 
-    pub fn into_frame_images(self) -> impl Iterator<Item = (i32, RgbImage)> {
+    pub fn render_frames(self, resolution: Vector2<u32>) -> impl Iterator<Item = (i32, RgbImage)> {
         self.frames
             .into_iter()
-            .map(|frame| (frame.0, frame.1.render()))
+            .map(move |frame| (frame.0, frame.1.render(resolution)))
     }
 
-    pub fn save_frames<Q: AsRef<Path>>(self, base_path: Q) -> Result<(), ImageError> {
+    pub fn save_frames<Q: AsRef<Path>>(
+        self,
+        base_path: Q,
+        frames: impl Iterator<Item = (i32, RgbImage)>,
+    ) -> Result<(), ImageError> {
         // todo: handle unwrap error
         let base_path_name = base_path.as_ref().file_stem().unwrap().to_str().unwrap();
 
         let mut result = Result::Ok(());
-        self.into_frame_images().for_each(|(i, frame)| {
+        frames.for_each(|(i, frame)| {
             let mut frame_name = base_path_name.to_owned();
             frame_name.push_str(&format!(".{:0>4}", i + 1));
             frame_name.push_str(&format!(

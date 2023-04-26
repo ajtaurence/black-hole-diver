@@ -1,15 +1,40 @@
 use nalgebra::{Rotation3, Vector2, Vector3};
 use std::f64::consts::PI;
 
-use crate::spherical_angle::{RainAngle, SphericalAngle};
+use crate::{
+    spherical_angle::{RainAngle, SphericalAngle},
+    traits::Interpolate,
+};
+
+// TODO: remove resolution from camera and add it to render properties
 
 // Camera is assumed to be at the origin
-pub trait Camera: Default + Clone + Sync {
+pub trait Camera: Interpolate + Default + Clone + Sync + 'static {
     // returns the resolution of the camera
     fn resolution(&self) -> Vector2<u32>;
 
     // returns the ray direction through this pixel
     fn pixel_to_rain_angle(&self, pixel: Vector2<u32>) -> RainAngle;
+
+    fn set_x_resolution(&mut self, xres: u32);
+
+    fn set_y_resolution(&mut self, yres: u32);
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Cameras {
+    #[default]
+    Perspective,
+    Equirectangular,
+}
+
+impl ToString for Cameras {
+    fn to_string(&self) -> String {
+        match self {
+            Cameras::Perspective => "Perspective".to_owned(),
+            Cameras::Equirectangular => "360°".to_owned(),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -100,6 +125,27 @@ impl Camera for EquirectangularCamera {
 
         RainAngle::from_vector(dir)
     }
+
+    fn set_x_resolution(&mut self, xres: u32) {
+        self.vertical_resolution = xres / 2;
+    }
+
+    fn set_y_resolution(&mut self, yres: u32) {
+        self.vertical_resolution = yres;
+    }
+}
+
+impl Interpolate for EquirectangularCamera {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self {
+        EquirectangularCamera {
+            vertical_resolution: self
+                .vertical_resolution
+                .interpolate(&other.vertical_resolution, factor),
+            inverse_view_matrix: self
+                .inverse_view_matrix
+                .slerp(&other.inverse_view_matrix, factor as f64),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -111,6 +157,23 @@ pub struct PerspectiveCamera {
     // view matrix for transforming from local space to world space
     // column vectors are right, up, facing in global space
     pub inverse_view_matrix: Rotation3<f64>,
+}
+
+impl Interpolate for PerspectiveCamera {
+    fn interpolate(&self, other: &Self, factor: f32) -> Self {
+        let xres = self.resolution.x.interpolate(&other.resolution.x, factor);
+        let yres = self.resolution.x.interpolate(&other.resolution.y, factor);
+        // todo: avoid panic when angles are 180 degrees apart
+        let inverse_view_matrix = self
+            .inverse_view_matrix
+            .slerp(&other.inverse_view_matrix, factor as f64);
+
+        Self {
+            resolution: Vector2::new(xres, yres),
+            fov: self.fov.interpolate(&other.fov, factor),
+            inverse_view_matrix,
+        }
+    }
 }
 
 impl Default for PerspectiveCamera {
@@ -217,5 +280,13 @@ impl Camera for PerspectiveCamera {
             .transform_vector(&Vector3::new(x, y, z));
 
         RainAngle::from_vector(dir)
+    }
+
+    fn set_x_resolution(&mut self, xres: u32) {
+        self.resolution.x = xres;
+    }
+
+    fn set_y_resolution(&mut self, yres: u32) {
+        self.resolution.y = yres;
     }
 }

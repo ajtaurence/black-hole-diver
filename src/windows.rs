@@ -1,9 +1,8 @@
+use rfd::FileDialog;
 use std::{
     sync::{Arc, Mutex},
     thread,
 };
-
-use rfd::FileDialog;
 
 use crate::{
     animation::Animation, app::BHDiver, camera::EquirectangularCamera, scene::Scene,
@@ -26,27 +25,29 @@ pub const SETTINGS_WINDOW: Window = Window {
 pub const INFO_WINDOW: Window = Window {
     name: "Info",
     build: |ui, app| {
+        let current_scene = app.timeline.get_current_scene();
+
         egui::Grid::new("performance_grid")
             .striped(true)
             .show(ui, |ui| {
                 ui.label("Radius");
-                ui.label(format!("{:.3} M", app.scene.diver.position()));
+                ui.label(format!("{:.3} M", current_scene.diver.position()));
                 ui.end_row();
 
                 ui.label("Remaining time");
-                ui.label(format!("{:.3} M", app.scene.diver.remaining_time()));
+                ui.label(format!("{:.3} M", current_scene.diver.remaining_time()));
                 ui.end_row();
 
                 ui.label("Shell speed");
-                ui.label(format!("{:.3}", app.scene.diver.speed()));
+                ui.label(format!("{:.3}", current_scene.diver.speed()));
                 ui.end_row();
 
                 ui.label("Vertical field of view");
-                ui.label(format!("{:.3}°", app.scene.camera.fov.to_degrees()));
+                ui.label(format!("{:.3}°", current_scene.camera.fov.to_degrees()));
                 ui.end_row();
 
                 ui.label("Focal length");
-                ui.label(format!("{:.0} px", app.scene.camera.get_focal_length()));
+                ui.label(format!("{:.0} px", current_scene.camera.get_focal_length()));
             });
     },
 };
@@ -54,6 +55,8 @@ pub const INFO_WINDOW: Window = Window {
 pub const RENDER_WINDOW: Window = Window {
     name: "Render",
     build: |ui, app| {
+        let current_scene = app.timeline.get_current_scene();
+
         if ui
             .add_enabled(
                 app.render_manager.is_render_available(),
@@ -93,12 +96,12 @@ pub const RENDER_WINDOW: Window = Window {
                     .save_file()
                 {
                     let rendering_clone = rendering.clone();
-                    let scene = app.scene.clone();
+                    let scene = current_scene.clone();
                     // we are now rendering
                     *rendering_clone.lock().unwrap() = true;
                     // start a new thread to render and save the image
                     thread::spawn(move || {
-                        let image = Scene::<EquirectangularCamera, _>::from(scene).render();
+                        let image = Scene::<EquirectangularCamera>::from(scene).render();
                         let _ = image.save(file_path);
                         if let Ok(mut rendering_clone) = rendering_clone.lock() {
                             // set rendering to false
@@ -126,7 +129,7 @@ pub const RENDER_WINDOW: Window = Window {
             ui.label("Duration");
             ui.add(
                 egui::DragValue::new(&mut duration)
-                    .clamp_range(0_f64..=app.scene.diver.final_time()),
+                    .clamp_range(0_f64..=current_scene.diver.final_time()),
             );
 
             // add render 360 button if not currently rendering
@@ -143,7 +146,7 @@ pub const RENDER_WINDOW: Window = Window {
                 {
                     let rendering_clone = rendering.clone();
                     let animation =
-                        Animation::from_scene_duration(app.scene.clone(), duration, frames);
+                        Animation::from_scene_duration(current_scene.clone(), duration, frames);
                     // we are now rendering
                     *rendering_clone.lock().unwrap() = true;
                     // start a new thread to render and save the image

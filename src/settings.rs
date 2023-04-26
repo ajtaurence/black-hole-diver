@@ -20,12 +20,16 @@ impl Default for Settings {
 
 impl Settings {
     pub fn build(ui: &mut egui::Ui, app: &mut BHDiver) {
+        let mut current_scene = app.timeline.get_current_scene();
+
         ui.heading("Visual");
 
         egui::Grid::new("visual_grid").show(ui, |ui| {
             ui.label("Enable relativity");
-            ui.checkbox(&mut app.scene.gr, "");
+            ui.checkbox(&mut current_scene.gr, "");
         });
+
+        app.timeline.get_current_scene();
 
         ui.separator();
 

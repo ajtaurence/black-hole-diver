@@ -1,24 +1,24 @@
-use std::sync::Arc;
-
 use crate::{
     camera::{Camera, EquirectangularCamera, PerspectiveCamera},
     diver::Diver,
     environment::Environment,
+    traits::Interpolate,
 };
 use image::{ImageBuffer, Pixel, Rgb, RgbImage};
 use nalgebra::Vector2;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
+use std::sync::Arc;
 
 #[derive(PartialEq)]
-pub struct Scene<C: Camera, E: Environment> {
+pub struct Scene<C: Camera> {
     pub camera: C,
-    pub env: Arc<E>,
+    pub env: Arc<Environment>,
     pub diver: Diver,
     pub gr: bool,
 }
 
-impl<E: Environment> From<Scene<PerspectiveCamera, E>> for Scene<EquirectangularCamera, E> {
-    fn from(scene: Scene<PerspectiveCamera, E>) -> Self {
+impl From<Scene<PerspectiveCamera>> for Scene<EquirectangularCamera> {
+    fn from(scene: Scene<PerspectiveCamera>) -> Self {
         Self {
             camera: scene.camera.into(),
             env: scene.env,
@@ -28,14 +28,14 @@ impl<E: Environment> From<Scene<PerspectiveCamera, E>> for Scene<Equirectangular
     }
 }
 
-impl<C: Camera, E: Environment> Clone for Scene<C, E> {
+impl<C: Camera> Clone for Scene<C> {
     fn clone(&self) -> Self {
         Self::new(self.camera.clone(), self.env.clone(), self.diver, self.gr)
     }
 }
 
-impl<C: Camera, E: Environment> Scene<C, E> {
-    pub fn new(camera: C, env: Arc<E>, diver: Diver, gr: bool) -> Scene<C, E> {
+impl<C: Camera> Scene<C> {
+    pub fn new(camera: C, env: Arc<Environment>, diver: Diver, gr: bool) -> Scene<C> {
         Self {
             camera,
             env,
@@ -88,7 +88,19 @@ impl<C: Camera, E: Environment> Scene<C, E> {
     }
 }
 
-impl<C: Camera, E: Environment> Default for Scene<C, E> {
+impl<C: Camera> Interpolate for Scene<C> {
+    fn interpolate(&self, other: &Scene<C>, factor: f32) -> Scene<C> {
+        let camera = self.camera.interpolate(&other.camera, factor);
+        Scene::new(
+            camera,
+            self.env.clone(),
+            self.diver.interpolate(&other.diver, factor),
+            self.gr,
+        )
+    }
+}
+
+impl<C: Camera> Default for Scene<C> {
     fn default() -> Self {
         Self {
             camera: Default::default(),

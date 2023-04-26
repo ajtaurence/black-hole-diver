@@ -1,19 +1,18 @@
-use image::RgbImage;
-
+use crate::camera::Camera;
 use crate::scene::Scene;
-use crate::{camera::Camera, environment::Environment};
+use image::RgbImage;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub struct RenderManager<C: Camera, E: Environment> {
+pub struct RenderManager<C: Camera> {
     working: Arc<Mutex<bool>>,
     previous_render: Arc<Mutex<Option<(RgbImage, Duration)>>>,
-    previous_scene: Option<Scene<C, E>>,
+    previous_scene: Option<Scene<C>>,
 }
 
-impl<C: Camera, E: Environment> Default for RenderManager<C, E> {
+impl<C: Camera> Default for RenderManager<C> {
     fn default() -> Self {
         Self {
             working: Arc::new(Mutex::new(false)),
@@ -23,7 +22,7 @@ impl<C: Camera, E: Environment> Default for RenderManager<C, E> {
     }
 }
 
-impl<C: Camera, E: Environment> RenderManager<C, E> {
+impl<C: Camera> RenderManager<C> {
     pub fn new() -> Self {
         Default::default()
     }
@@ -54,11 +53,10 @@ impl<C: Camera, E: Environment> RenderManager<C, E> {
         *self.working.lock().unwrap()
     }
 
-    pub fn new_render(&mut self, scene: Scene<C, E>)
+    pub fn new_render(&mut self, scene: Scene<C>)
     where
-        C: Camera + Send + Sync + 'static,
-        E: Environment + 'static,
-        Scene<C, E>: PartialEq,
+        C: Camera + Send + Sync,
+        Scene<C>: PartialEq,
     {
         // if the scene is the same as the last scene then don't re-render it
         if let Some(previous_scene) = &self.previous_scene {

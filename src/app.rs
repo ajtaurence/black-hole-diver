@@ -8,13 +8,10 @@ use eframe::egui;
 use egui::{ColorImage, DragValue, Sense, Vec2};
 use image::GenericImageView;
 use nalgebra::Vector2;
-use std::time::Instant;
 
 pub struct BHDiver {
     pub timeline: Timeline,
     pub settings: Settings,
-    pub time_of_last_frame: Instant,
-    pub animating: bool,
     pub preview_manager: PreviewManager,
 }
 
@@ -23,8 +20,6 @@ impl Default for BHDiver {
         Self {
             timeline: Default::default(),
             settings: Default::default(),
-            time_of_last_frame: Instant::now(),
-            animating: false,
             preview_manager: Default::default(),
         }
     }
@@ -55,7 +50,7 @@ impl eframe::App for BHDiver {
         });
 
         // Menu bar
-        egui::TopBottomPanel::top("top_pannel").show(ctx, |ui| {
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 INFO_WINDOW.menu_button(ui);
                 SETTINGS_WINDOW.menu_button(ui);
@@ -65,13 +60,6 @@ impl eframe::App for BHDiver {
 
         egui::SidePanel::new(egui::panel::Side::Left, "left pannel").show(ctx, |ui| {
             egui::Grid::new("main_grid").num_columns(2).show(ui, |ui| {
-                ui.label("Frame");
-                ui.add(
-                    DragValue::new(&mut self.timeline.current_frame)
-                        .clamp_range(self.timeline.start_frame..=self.timeline.end_frame),
-                );
-                ui.end_row();
-
                 ui.label("Initial radius");
                 self.timeline.with_current_scene(|current_scene| {
                     ui.add(
@@ -88,17 +76,6 @@ impl eframe::App for BHDiver {
 
                 // update diver time
                 self.timeline.with_current_scene(|current_scene| {
-                    if self.animating {
-                        current_scene.diver.time_step(
-                            ctx.input(|r| r.stable_dt) as f64 * self.settings.animation_speed,
-                        );
-
-                        if current_scene.diver.time() == current_scene.diver.final_time() {
-                            self.animating = false;
-                        }
-                    }
-                    self.time_of_last_frame = Instant::now();
-
                     let final_time = current_scene.diver.final_time();
                     ui.add(
                         DragValue::new(current_scene.diver.time_ref())
@@ -108,19 +85,14 @@ impl eframe::App for BHDiver {
                     );
                 });
                 ui.end_row();
-
-                ui.label("Animate");
-                if !self.animating {
-                    if ui.button("▶").clicked() {
-                        self.animating = true;
-                    }
-                } else {
-                    if ui.button("⏸").clicked() {
-                        self.animating = false;
-                    }
-                }
             });
         });
+
+        egui::TopBottomPanel::bottom("timeline panel")
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                self.timeline.show(ui);
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // get pixels per egui point
@@ -205,15 +177,8 @@ impl eframe::App for BHDiver {
             // Start a new render
             self.preview_manager
                 .new_render(self.timeline.get_current_scene(), preview_res);
-
-            if self.preview_manager.is_working() {
-                ctx.request_repaint();
-            }
         });
 
-        // handle spacebar input
-        if ctx.input(|r| r.key_pressed(egui::Key::Space)) {
-            self.animating = !self.animating;
-        }
+        ctx.request_repaint();
     }
 }

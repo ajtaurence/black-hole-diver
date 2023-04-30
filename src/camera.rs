@@ -136,10 +136,13 @@ impl Camera {
                 RainAngle::from_vector(dir)
             }
             Projection::Equirectangular => {
-                // local coordinates
+                // traditional equirectangular coordinates with +z up
                 let theta = PI * (1_f64 - pixel.y as f64 / resolution.y as f64);
                 let phi = PI * pixel.x as f64 / resolution.y as f64;
-                let local_dir = RainAngle::new(theta, phi).to_vector();
+                let vector = RainAngle::new(theta, phi).to_vector();
+
+                // make +z forward on equirectangular projection
+                let local_dir = Vector3::new(-vector.y, -vector.z, vector.x);
 
                 // transform to global
                 let dir = self.inverse_view_matrix.transform_vector(&local_dir);

@@ -123,7 +123,8 @@ impl Timeline {
     pub fn delete_keyframe(&mut self, frame: i32) {
         // if this is the last keyframe then let clear keyframes handle it
         if self.keyframes.len() == 1 {
-            self.clear_keyframes()
+            self.clear_keyframes();
+            return;
         }
 
         self.keyframes.remove(&frame);

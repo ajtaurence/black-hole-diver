@@ -1,4 +1,4 @@
-use crate::camera::Projection;
+use crate::render::RenderSettings;
 use crate::scene::Scene;
 use image::RgbImage;
 use nalgebra::Vector2;
@@ -77,7 +77,7 @@ impl PreviewManager {
             thread::spawn(move || {
                 // rendering logic
                 let start = Instant::now();
-                let render = scene.render(Projection::Perspective, resolution);
+                let render = scene.render(RenderSettings::preview(resolution));
 
                 // save render
                 *previous_render.lock().unwrap() = Some((render, Instant::now() - start));

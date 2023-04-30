@@ -1,7 +1,5 @@
-use crate::{camera::Projection, scene::Scene};
-use image::{ImageError, RgbImage};
-use nalgebra::Vector2;
-use std::{ffi::OsStr, path::Path};
+use crate::{render::RenderSettings, scene::Scene};
+use image::RgbImage;
 
 #[derive(Clone)]
 pub struct Frame(pub i32, pub Scene);
@@ -37,39 +35,16 @@ impl Animation {
         )
     }
 
+    pub fn n_frames(&self) -> usize {
+        self.frames.len()
+    }
+
     pub fn render_frames(
         self,
-        projection: Projection,
-        resolution: Vector2<u32>,
+        render_settings: RenderSettings,
     ) -> impl Iterator<Item = (i32, RgbImage)> {
         self.frames
             .into_iter()
-            .map(move |frame| (frame.0, frame.1.render(projection, resolution)))
-    }
-
-    pub fn save_frames<Q: AsRef<Path>>(
-        self,
-        base_path: Q,
-        frames: impl Iterator<Item = (i32, RgbImage)>,
-    ) -> Result<(), ImageError> {
-        // todo: handle unwrap error
-        let base_path_name = base_path.as_ref().file_stem().unwrap().to_str().unwrap();
-
-        let mut result = Result::Ok(());
-        frames.for_each(|(i, frame)| {
-            let mut frame_name = base_path_name.to_owned();
-            frame_name.push_str(&format!(".{:0>4}", i + 1));
-            frame_name.push_str(&format!(
-                ".{}",
-                base_path.as_ref().extension().unwrap().to_str().unwrap()
-            ));
-
-            result = frame.save(base_path.as_ref().with_file_name(OsStr::new(&frame_name)));
-            if result.is_err() {
-                return;
-            }
-        });
-
-        result
+            .map(move |frame| (frame.0, frame.1.render(render_settings)))
     }
 }

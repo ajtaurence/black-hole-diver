@@ -1,15 +1,15 @@
 use crate::spherical_angle::{MapAngle, SphericalAngle};
 use image::{Rgb, RgbImage};
-use std::f64::consts::PI;
+use std::{f64::consts::PI, sync::Arc};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum EnvironmentError {
     NotEquirectangularImage,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Environment {
-    image: RgbImage,
+    image: Arc<RgbImage>,
 }
 
 impl Default for Environment {
@@ -28,7 +28,9 @@ impl Environment {
         let image = image.into();
 
         if image.width() == 2 * image.height() {
-            return Ok(Environment { image });
+            return Ok(Environment {
+                image: Arc::new(image),
+            });
         } else {
             return Err(EnvironmentError::NotEquirectangularImage);
         }

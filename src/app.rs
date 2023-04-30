@@ -1,28 +1,21 @@
 use crate::{
     preview_manager::PreviewManager,
+    render::Renderer,
     settings::Settings,
     timeline::Timeline,
-    windows::{ALL_WINDOWS, INFO_WINDOW, RENDER_WINDOW, SETTINGS_WINDOW},
+    windows::{ALL_WINDOWS, SETTINGS_WINDOW},
 };
 use eframe::egui;
-use egui::{ColorImage, DragValue, Sense, Vec2};
+use egui::{ColorImage, Sense, Vec2};
 use image::GenericImageView;
 use nalgebra::Vector2;
 
+#[derive(Default)]
 pub struct BHDiver {
     pub timeline: Timeline,
     pub settings: Settings,
     pub preview_manager: PreviewManager,
-}
-
-impl Default for BHDiver {
-    fn default() -> Self {
-        Self {
-            timeline: Default::default(),
-            settings: Default::default(),
-            preview_manager: Default::default(),
-        }
-    }
+    pub renderer: Renderer,
 }
 
 impl BHDiver {
@@ -50,49 +43,35 @@ impl eframe::App for BHDiver {
         });
 
         // Menu bar
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        egui::TopBottomPanel::top("menu_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                INFO_WINDOW.menu_button(ui);
                 SETTINGS_WINDOW.menu_button(ui);
-                RENDER_WINDOW.menu_button(ui);
-            });
-        });
-
-        egui::SidePanel::new(egui::panel::Side::Left, "left pannel").show(ctx, |ui| {
-            egui::Grid::new("main_grid").num_columns(2).show(ui, |ui| {
-                ui.label("Initial radius");
-                self.timeline.with_current_scene(|current_scene| {
-                    ui.add(
-                        DragValue::new(current_scene.diver.initial_radius_ref())
-                            .clamp_range(0_f64..=f64::MAX)
-                            .speed(0.1)
-                            .suffix(" M"),
-                    );
-                });
-
-                ui.end_row();
-
-                ui.label("Time");
-
-                // update diver time
-                self.timeline.with_current_scene(|current_scene| {
-                    let final_time = current_scene.diver.final_time();
-                    ui.add(
-                        DragValue::new(current_scene.diver.time_ref())
-                            .clamp_range(f64::MIN..=final_time)
-                            .speed(0.1)
-                            .suffix(" M"),
-                    );
-                });
-                ui.end_row();
             });
         });
 
         egui::TopBottomPanel::bottom("timeline panel")
-            .show_separator_line(false)
+            .default_height(100_f32)
+            .resizable(true)
             .show(ctx, |ui| {
                 self.timeline.show(ui);
             });
+
+        egui::SidePanel::new(egui::panel::Side::Left, "scene panel")
+            .resizable(true)
+            .show(ctx, |ui| {
+                self.timeline.with_current_scene(|scene| {
+                    ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                        ui.heading("Scene");
+                        scene.show(ui);
+                    });
+                });
+            });
+
+        egui::SidePanel::right("render panel").show(ctx, |ui| {
+            ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                self.renderer.show(&self.timeline, ui);
+            });
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // get pixels per egui point

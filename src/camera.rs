@@ -148,4 +148,24 @@ impl Camera {
             }
         }
     }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("camera_grid")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label("Vertical FOV");
+                let mut fov = self.fov.to_degrees();
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut fov)
+                            .clamp_range(0_f64..=180_f64)
+                            .suffix("°"),
+                    )
+                    .changed()
+                {
+                    self.fov = fov.to_radians();
+                };
+                ui.end_row();
+            });
+    }
 }

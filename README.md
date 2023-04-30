@@ -7,15 +7,11 @@ Black Hole Diver is a work-in-progress Schwarzschild black hole renderer for rad
 # Features
 ## Current
 * Realtime viewport
-* Toggle general relativity on/off
-* Perpective and 360° camera
-* Image rendering
-* Locked camera freefall animation rendering
-* Property keyframing
+* Timeline editor
+* Image and animation rendering
+* Perpective and 360° cameras
 
 ## Planned
-* Proper timeline editor
-* Custom animation rendering
 * Custom HDRIs
 * Save and load timeline sequences
 * Custom radial asymptotic speed

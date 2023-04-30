@@ -74,4 +74,28 @@ impl Diver {
     pub fn remaining_time(&self) -> f64 {
         2_f64.sqrt() * self.position().powf(3_f64 / 2_f64) / 3_f64
     }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("diver_grid").num_columns(2).show(ui, |ui| {
+            ui.label("Initial distance");
+            ui.add(
+                egui::DragValue::new(&mut self.rinit)
+                    .clamp_range(0_f64..=f64::MAX)
+                    .speed(0.1)
+                    .suffix(" M"),
+            );
+
+            ui.end_row();
+
+            let final_time = self.final_time();
+            ui.label("Time");
+            ui.add(
+                egui::DragValue::new(self.time_ref())
+                    .clamp_range(f64::MIN..=final_time)
+                    .speed(0.1)
+                    .suffix(" M"),
+            );
+            ui.end_row();
+        });
+    }
 }
